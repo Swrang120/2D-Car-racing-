@@ -24,7 +24,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -63,19 +63,16 @@ fun PedalButton(
         modifier = modifier
             .size(width = width, height = height)
             .testTag(if (type == PedalType.BRAKE) "brake_pedal" else "gas_pedal")
-            .pointerInteropFilter { motionEvent ->
-                when (motionEvent.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        isTouching = true
-                        onPressChanged(true)
-                        true
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val isDown = event.changes.any { it.pressed }
+                        if (isDown != isTouching) {
+                            isTouching = isDown
+                            onPressChanged(isDown)
+                        }
                     }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        isTouching = false
-                        onPressChanged(false)
-                        true
-                    }
-                    else -> true
                 }
             }
             .graphicsLayer {

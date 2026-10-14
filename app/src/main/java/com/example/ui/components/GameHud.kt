@@ -40,8 +40,8 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun GameHud(
     distanceMeters: Int,
-    targetDistanceMeters: Int,
     bestDistanceMeters: Int,
+    stageName: String = "",
     currentFuel: Float,
     maxFuel: Float,
     coinsEarnedInRun: Int,
@@ -66,7 +66,7 @@ fun GameHud(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left: Distance and Best Distance
+            // Left: Distance, Best Distance, and Stage Name
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
@@ -83,18 +83,26 @@ fun GameHud(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Column {
+                        if (stageName.isNotEmpty()) {
+                            Text(
+                                text = stageName.uppercase(),
+                                color = Color(0xFF38BDF8),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                         Text(
-                            text = "${distanceMeters}m of ${targetDistanceMeters}m",
+                            text = "${distanceMeters}m",
                             color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Black
                         )
                         if (bestDistanceMeters > 0) {
                             Text(
                                 text = "BEST: ${bestDistanceMeters}m",
-                                color = Color(0xFF94A3B8),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
+                                color = Color(0xFFFFD54F),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }

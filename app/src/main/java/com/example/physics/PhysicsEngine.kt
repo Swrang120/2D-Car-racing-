@@ -2,14 +2,13 @@ package com.example.physics
 
 import androidx.compose.ui.graphics.Color
 import com.example.model.CoinItem
-import com.example.model.EnvironmentType
 import com.example.model.FloatingNotification
 import com.example.model.FuelCanItem
 import com.example.model.GameState
-import com.example.model.LevelInfo
 import com.example.model.ObstacleItem
 import com.example.model.ObstacleType
 import com.example.model.Particle
+import com.example.model.StageType
 import com.example.model.VehicleType
 import com.example.model.VehicleUpgradeState
 import kotlin.math.PI
@@ -24,187 +23,117 @@ import kotlin.random.Random
 class PhysicsEngine(
     val vehicleType: VehicleType,
     val upgrades: VehicleUpgradeState,
-    val levelInfo: LevelInfo
+    val stage: StageType
 ) {
-    // Terrain base parameters
-    val baseGroundY = 460f
-    val trackEndWorldX = levelInfo.lengthMeters * 26f
+    // Ground baseline elevation
+    val baseGroundY = 480f
 
-    // Vehicle state
-    var chassisX: Float = 120f
-    var chassisY: Float = baseGroundY - 60f
-    var chassisAngle: Float = 0f // in radians
+    // Completely flat and stable starting runway (first 55+ meters = 55 * 26f = 1430px)
+    val flatSpawnRunwayLength = 1500f
+
+    // One-wheeler or two-wheeler configuration
+    val isOneWheeler = vehicleType.isOneWheeler
+    val halfBase = if (isOneWheeler) 0f else vehicleType.wheelBase * 0.5f
+
+    // Spawn parameters: Vehicle resting stably at equilibrium on flat ground
+    var chassisX: Float = 180f
+    var chassisAngle: Float = 0f
     var chassisVx: Float = 0f
     var chassisVy: Float = 0f
     var chassisAngularVel: Float = 0f
 
-    // Wheel positions and velocities
-    var rearWheelX: Float = 120f - vehicleType.wheelBase * 0.5f
+    // Wheel parameters
+    var rearWheelX: Float = chassisX - halfBase
     var rearWheelY: Float = baseGroundY - vehicleType.wheelRadius
     var rearWheelVx: Float = 0f
     var rearWheelVy: Float = 0f
     var rearWheelSpin: Float = 0f
+    var rearWheelOnGround: Boolean = true
 
-    var frontWheelX: Float = 120f + vehicleType.wheelBase * 0.5f
+    var frontWheelX: Float = chassisX + halfBase
     var frontWheelY: Float = baseGroundY - vehicleType.wheelRadius
     var frontWheelVx: Float = 0f
     var frontWheelVy: Float = 0f
     var frontWheelSpin: Float = 0f
+    var frontWheelOnGround: Boolean = true
 
-    var rearWheelOnGround: Boolean = false
-    var frontWheelOnGround: Boolean = false
+    // Center of mass rest height directly above wheels
+    var chassisY: Float = baseGroundY - vehicleType.wheelRadius - vehicleType.suspensionLength
+
+    // Spawn stability & Grace period (prevents any instant start flipping or false crash)
+    var spawnGraceTimer: Float = 3.0f
 
     // Gauges / Engine state
-    var rpm: Float = 900f // idle RPM
+    var rpm: Float = 950f
     var currentSpeedKmh: Float = 0f
     var boostValue: Float = 0f
 
-    // Fuel state
-    val maxFuel: Float = 100f + (upgrades.fuelLevel - 1) * 18f
+    // Fuel State
+    val maxFuel: Float = 100f + (upgrades.fuelLevel - 1) * 25f
     var currentFuel: Float = maxFuel
-    val fuelConsumptionRate: Float = (0.025f / (1f + (upgrades.fuelLevel - 1) * 0.12f))
+    val fuelBurnRate: Float = (0.019f / (1f + (upgrades.fuelLevel - 1) * 0.16f))
+    var outOfFuelTimer: Float = 0f
 
-    // Stunt & Airtime tracking
-    var isAirborne: Boolean = false
-    var airtimeSeconds: Float = 0f
-    var totalAirtimeAccumulated: Float = 0f
-    var airborneRotationAccumulator: Float = 0f
-    var lastSafeAngle: Float = 0f
-
-    // Game stats
+    // Distance & Score in Endless Mode
     var distanceMeters: Int = 0
     var coinsCollectedCount: Int = 0
     var coinsCollectedScore: Int = 0
     var totalFuelCollected: Int = 0
-    var perfectRunEligible: Boolean = true
 
-    // World Items
+    // Airtime & Stunt detection
+    var isAirborne: Boolean = false
+    var airtimeSeconds: Float = 0f
+    var airborneRotationAccumulator: Float = 0f
+
+    // Endless Procedural Generation Frontier
+    private var generatedFrontierX: Float = 0f
+    private var lastFuelCanSpawnX: Float = 0f
+    private var nextCoinId: Long = 1L
+    private var nextFuelId: Long = 1L
+    private var nextObstacleId: Long = 1L
+    private val proceduralRng = Random(stage.ordinal * 99991L + 42L)
+
+    // World Collections
     val coins = mutableListOf<CoinItem>()
     val fuelCans = mutableListOf<FuelCanItem>()
     val obstacles = mutableListOf<ObstacleItem>()
+    val bridges = mutableListOf<Pair<Float, Float>>()
     val particles = mutableListOf<Particle>()
     val floatingTexts = mutableListOf<FloatingNotification>()
 
-    // Bridges definition: (startX, endX)
-    val bridges = mutableListOf<Pair<Float, Float>>()
-
-    // Performance & Tunables
-    private val enginePowerMultiplier: Float =
-        vehicleType.baseEngineTorque * (1.0f + (upgrades.engineLevel - 1) * 0.16f)
-    private val tireGripMultiplier: Float =
-        vehicleType.baseTireGrip * (1.0f + (upgrades.tiresLevel - 1) * 0.12f) *
-                levelInfo.environment.frictionMultiplier
+    // Performance multipliers based on vehicle & upgrades
+    private val enginePower: Float =
+        vehicleType.baseEngineTorque * (1.0f + (upgrades.engineLevel - 1) * 0.20f)
+    private val tireGrip: Float =
+        vehicleType.baseTireGrip * (1.0f + (upgrades.tiresLevel - 1) * 0.16f) * stage.frictionMultiplier
     private val suspensionStiffness: Float =
-        (220f + (upgrades.suspensionLevel - 1) * 25f)
+        (220f + (upgrades.suspensionLevel - 1) * 28f)
     private val suspensionDamping: Float =
-        (16f + (upgrades.suspensionLevel - 1) * 1.5f)
+        (24f + (upgrades.suspensionLevel - 1) * 3f)
 
     init {
-        generateLevelTrack()
-    }
-
-    private fun generateLevelTrack() {
-        val rand = Random(levelInfo.levelNumber * 1007L)
-        val step = 140f
-        var curX = 350f
-
-        // Procedurally place bridges at certain intervals
-        if (levelInfo.gapFrequency > 0f) {
-            var bridgeX = 650f + rand.nextFloat() * 200f
-            while (bridgeX < trackEndWorldX - 300f) {
-                val bridgeLen = 160f + rand.nextFloat() * 100f * levelInfo.gapFrequency
-                bridges.add(Pair(bridgeX, bridgeX + bridgeLen))
-                bridgeX += 700f + rand.nextFloat() * 600f
-            }
-        }
-
-        // Spawn coins and fuel cans along track
-        var lastFuelCanX = 150f
-        var coinId = 0
-        var fuelId = 0
-        var obsId = 0
-
-        while (curX < trackEndWorldX) {
-            // Fuel cans every ~450 to 650 meters
-            if (curX - lastFuelCanX >= 480f) {
-                val groundY = getTerrainElevation(curX)
-                fuelCans.add(FuelCanItem(fuelId++, curX, groundY - 26f))
-                lastFuelCanX = curX
-                curX += 90f
-                continue
-            }
-
-            // Coin clusters
-            val clusterType = rand.nextInt(4)
-            val groundY = getTerrainElevation(curX)
-
-            when (clusterType) {
-                0 -> {
-                    // Parabolic arc (jump arc)
-                    val coinVal = if (rand.nextBoolean()) 5 else 10
-                    for (i in 0 until 5) {
-                        val cx = curX + i * 36f
-                        val gy = getTerrainElevation(cx)
-                        val arcHeight = 40f * sin(i * PI.toFloat() / 4f)
-                        coins.add(CoinItem(coinId++, cx, gy - 30f - arcHeight, coinVal))
-                    }
-                    curX += 5 * 36f + 60f
-                }
-                1 -> {
-                    // High value coins on hillcrest
-                    val coinVal = if (rand.nextInt(3) == 0) 100 else 50
-                    coins.add(CoinItem(coinId++, curX, groundY - 32f, coinVal))
-                    coins.add(CoinItem(coinId++, curX + 38f, getTerrainElevation(curX + 38f) - 34f, coinVal))
-                    curX += 100f
-                }
-                2 -> {
-                    // Ground line of 25s
-                    for (i in 0 until 4) {
-                        val cx = curX + i * 32f
-                        coins.add(CoinItem(coinId++, cx, getTerrainElevation(cx) - 24f, 25))
-                    }
-                    curX += 4 * 32f + 50f
-                }
-                else -> {
-                    // Obstacle placement (crates/barrels)
-                    if (curX > 400f && rand.nextFloat() < 0.45f) {
-                        val obsY = getTerrainElevation(curX)
-                        val type = if (rand.nextBoolean()) ObstacleType.WOOD_CRATE else ObstacleType.OIL_BARREL
-                        val size = if (type == ObstacleType.WOOD_CRATE) 28f else 24f
-                        obstacles.add(
-                            ObstacleItem(
-                                id = obsId++,
-                                x = curX,
-                                y = obsY - size * 0.5f,
-                                width = size,
-                                height = size,
-                                type = type
-                            )
-                        )
-                    }
-                    curX += step
-                }
-            }
-        }
+        // Pre-generate procedural features for the first 3500px ahead
+        expandWorldFrontier(3500f)
     }
 
     /**
-     * Smooth procedural terrain elevation function.
-     * Returns the ground surface Y coordinate in screen/world space.
+     * Procedural terrain elevation.
+     * Guaranteed completely FLAT and STABLE for the first 50+ meters (x <= flatSpawnRunwayLength).
      */
     fun getTerrainElevation(x: Float): Float {
-        if (x < 0f) return baseGroundY
+        if (x <= flatSpawnRunwayLength) {
+            return baseGroundY
+        }
 
-        // Check if inside a wooden bridge span
-        for (bridge in bridges) {
-            if (x in bridge.first..bridge.second) {
-                val span = bridge.second - bridge.first
-                val progress = (x - bridge.first) / span
-                val y1 = getRawTerrainElevation(bridge.first)
-                val y2 = getRawTerrainElevation(bridge.second)
-                // Catenary sag in the middle of suspension bridge
-                val sag = sin(progress * PI.toFloat()) * 26f
-                return (y1 * (1f - progress) + y2 * progress) + sag
+        // Check if inside a suspension bridge chasm
+        for (b in bridges) {
+            if (x in b.first..b.second) {
+                val span = b.second - b.first
+                val t = (x - b.first) / span
+                val y1 = getRawTerrainElevation(b.first)
+                val y2 = getRawTerrainElevation(b.second)
+                val sag = sin(t * PI.toFloat()) * 26f
+                return (y1 * (1f - t) + y2 * t) + sag
             }
         }
 
@@ -212,35 +141,122 @@ class PhysicsEngine(
     }
 
     private fun getRawTerrainElevation(x: Float): Float {
-        val s = levelInfo.steepnessFactor
-        val w1 = sin(x * 0.0032f) * (90f * s)
-        val w2 = sin(x * 0.0084f) * (42f * s)
-        val w3 = sin(x * 0.019f) * (18f * s)
-        val w4 = sin(x * 0.00075f) * (140f * s)
-        // Gentle start platform for initial 220px
-        val startBlend = min(1f, max(0f, x / 240f))
-        return baseGroundY + (w1 + w2 + w3 + w4) * startBlend
+        val distPastRunway = (x - flatSpawnRunwayLength)
+        // Smooth ease-in so hills emerge gently after flat runway
+        val blend = min(1f, distPastRunway / 400f)
+
+        // Endless dynamic difficulty curve
+        val endlessDifficulty = 1.0f + min(0.65f, (x / 30000f))
+
+        val w1 = sin(x * 0.0028f) * (80f * endlessDifficulty)
+        val w2 = sin(x * 0.0075f) * (38f * endlessDifficulty)
+        val w3 = sin(x * 0.017f) * (16f * endlessDifficulty)
+        val w4 = sin(x * 0.0006f) * (120f * endlessDifficulty)
+
+        return baseGroundY + (w1 + w2 + w3 + w4) * blend
     }
 
-    /**
-     * Compute terrain slope angle (in radians) and normal vector at x
-     */
     fun getTerrainSlope(x: Float): Float {
-        val delta = 2.0f
-        val y1 = getTerrainElevation(x - delta)
-        val y2 = getTerrainElevation(x + delta)
-        return atan2(y2 - y1, delta * 2f)
-    }
-
-    fun isBridgeSection(x: Float): Boolean {
-        for (b in bridges) {
-            if (x in b.first..b.second) return true
-        }
-        return false
+        val dx = 3.0f
+        val y1 = getTerrainElevation(x - dx)
+        val y2 = getTerrainElevation(x + dx)
+        return atan2(y2 - y1, dx * 2f)
     }
 
     /**
-     * Primary physics tick (called at fixed ~60 FPS dt = 1/60s).
+     * Expands the endless procedural world ahead of the car.
+     */
+    private fun expandWorldFrontier(targetAheadX: Float) {
+        while (generatedFrontierX < targetAheadX) {
+            val curX = generatedFrontierX
+
+            // Gaps and Bridges after 70m
+            if (curX > 1900f && proceduralRng.nextFloat() < 0.08f) {
+                val span = 180f + proceduralRng.nextFloat() * 120f
+                bridges.add(Pair(curX, curX + span))
+                generatedFrontierX += span + 100f
+                continue
+            }
+
+            // Fuel Jerrycans every ~280 to 360 meters (7200 to 9360 px)
+            if ((curX - lastFuelCanSpawnX >= 7600f || lastFuelCanSpawnX == 0f) && curX > 800f) {
+                val fy = getTerrainElevation(curX) - 26f
+                fuelCans.add(FuelCanItem(nextFuelId++, curX, fy))
+                lastFuelCanSpawnX = curX
+                generatedFrontierX += 130f
+                continue
+            }
+
+            // Scatter coins along path
+            val groundY = getTerrainElevation(curX)
+            val clusterType = proceduralRng.nextInt(6)
+
+            when (clusterType) {
+                0, 1 -> {
+                    // Regular line of coins (5s and 10s)
+                    val coinVal = if (proceduralRng.nextBoolean()) 5 else 10
+                    for (i in 0 until 4) {
+                        val cx = curX + i * 36f
+                        val cy = getTerrainElevation(cx) - 26f
+                        coins.add(CoinItem(nextCoinId++, cx, cy, coinVal))
+                    }
+                    generatedFrontierX += 4 * 36f + 50f
+                }
+                2 -> {
+                    // High-flying parabolic jump arc (10s and 50s)
+                    val coinVal = if (proceduralRng.nextBoolean()) 10 else 50
+                    for (i in 0 until 5) {
+                        val cx = curX + i * 40f
+                        val gy = getTerrainElevation(cx)
+                        val arcHeight = 48f * sin(i * PI.toFloat() / 4f)
+                        coins.add(CoinItem(nextCoinId++, cx, gy - 34f - arcHeight, coinVal))
+                    }
+                    generatedFrontierX += 5 * 40f + 60f
+                }
+                3 -> {
+                    // Golden 100 on hill crest
+                    coins.add(CoinItem(nextCoinId++, curX, groundY - 32f, 100))
+                    coins.add(CoinItem(nextCoinId++, curX + 42f, getTerrainElevation(curX + 42f) - 34f, 100))
+                    generatedFrontierX += 110f
+                }
+                4 -> {
+                    // RARE 500 Coin Diamond (every few hundred meters)
+                    if (curX > 600f && proceduralRng.nextFloat() < 0.45f) {
+                        coins.add(CoinItem(nextCoinId++, curX, groundY - 46f, 500))
+                    }
+                    generatedFrontierX += 90f
+                }
+                else -> {
+                    // Obstacles (Crates/Barrels)
+                    if (curX > 1600f && proceduralRng.nextFloat() < 0.35f) {
+                        val type = if (proceduralRng.nextBoolean()) ObstacleType.WOOD_CRATE else ObstacleType.OIL_BARREL
+                        val size = if (type == ObstacleType.WOOD_CRATE) 28f else 24f
+                        obstacles.add(
+                            ObstacleItem(
+                                id = nextObstacleId++,
+                                x = curX,
+                                y = groundY - size * 0.5f,
+                                width = size,
+                                height = size,
+                                type = type
+                            )
+                        )
+                    }
+                    generatedFrontierX += 120f
+                }
+            }
+        }
+
+        // Cleanup items far behind to keep endless performance silky smooth
+        val pruneX = chassisX - 1400f
+        coins.removeAll { it.collected || it.x < pruneX }
+        fuelCans.removeAll { it.collected || it.x < pruneX }
+        obstacles.removeAll { it.x < pruneX }
+        bridges.removeAll { it.second < pruneX }
+    }
+
+    /**
+     * Physics update tick (~60fps).
      */
     fun update(
         dt: Float,
@@ -248,212 +264,154 @@ class PhysicsEngine(
         isBrakePressed: Boolean,
         onSoundEvent: (String) -> Unit
     ): GameState {
-        val grav = levelInfo.environment.gravity * 70f
+        val grav = stage.gravity * 65f
 
-        // Fuel logic
+        if (spawnGraceTimer > 0f) {
+            spawnGraceTimer = max(0f, spawnGraceTimer - dt)
+        }
+
+        // Expand endless procedural world ahead
+        expandWorldFrontier(chassisX + 2800f)
+
+        // Fuel consumption
         if (currentFuel > 0f) {
-            val burn = fuelConsumptionRate * dt * (if (isGasPressed) 6.2f else 1.2f)
+            val burn = fuelBurnRate * dt * (if (isGasPressed) 5.5f else 1.0f)
             currentFuel = max(0f, currentFuel - burn)
         }
-        val hasFuel = currentFuel > 0.01f
+        val hasFuel = currentFuel > 0.001f
 
-        // Engine & RPM
+        // RPM calculation
         val targetRpm = when {
-            isGasPressed && hasFuel -> 6800f + Random.nextFloat() * 400f
+            isGasPressed && hasFuel -> 7200f + Random.nextFloat() * 300f
             isBrakePressed -> 3200f
-            else -> 950f + Random.nextFloat() * 100f
+            else -> 950f + Random.nextFloat() * 60f
         }
         rpm += (targetRpm - rpm) * min(1f, dt * 10f)
 
-        // Boost accumulation indicator
+        // Boost indicator
         if (isGasPressed && hasFuel) {
-            boostValue = min(100f, boostValue + dt * 25f)
+            boostValue = min(100f, boostValue + dt * 32f)
         } else {
-            boostValue = max(0f, boostValue - dt * 35f)
+            boostValue = max(0f, boostValue - dt * 40f)
         }
 
-        // 1. Suspension & Wheel Physics
+        // Wheel geometry anchors from chassis center
         val cosA = cos(chassisAngle)
         val sinA = sin(chassisAngle)
-        val halfBase = vehicleType.wheelBase * 0.5f
         val suspLen = vehicleType.suspensionLength
 
-        // Wheel anchor points on chassis
-        val rearAnchorX = chassisX - cosA * halfBase - sinA * suspLen * 0.4f
-        val rearAnchorY = chassisY - sinA * halfBase + cosA * suspLen * 0.4f
-        val frontAnchorX = chassisX + cosA * halfBase - sinA * suspLen * 0.4f
-        val frontAnchorY = chassisY + sinA * halfBase + cosA * suspLen * 0.4f
+        // Wheel anchors attached to chassis
+        val rearAnchorX = chassisX - cosA * halfBase
+        val rearAnchorY = chassisY - sinA * halfBase
+        val frontAnchorX = chassisX + cosA * halfBase
+        val frontAnchorY = chassisY + sinA * halfBase
 
-        // Rear Wheel Ground Collision
+        // 1. Rear Wheel Ground Contact
         val rearGroundY = getTerrainElevation(rearWheelX)
-        val rearDistToGround = (rearWheelY + vehicleType.wheelRadius) - rearGroundY
-        rearWheelOnGround = rearDistToGround >= 0f
+        val rearPenetration = (rearWheelY + vehicleType.wheelRadius) - rearGroundY
+        rearWheelOnGround = rearPenetration >= 0f
 
         if (rearWheelOnGround) {
             rearWheelY = rearGroundY - vehicleType.wheelRadius
-            if (rearWheelVy > 0f) {
-                rearWheelVy = -rearWheelVy * 0.12f
-            }
-            val slopeAngle = getTerrainSlope(rearWheelX)
-            val slopeNormalX = -sin(slopeAngle)
-            val slopeNormalY = -cos(slopeAngle)
-
-            // Normal support force
-            rearWheelVy -= (grav * dt) * 0.85f
-
-            // Drive torque / traction
-            if (hasFuel && isGasPressed) {
-                val driveAcc = 360f * enginePowerMultiplier * tireGripMultiplier
-                rearWheelVx += driveAcc * dt * cos(slopeAngle)
-                rearWheelVy += driveAcc * dt * sin(slopeAngle)
-                rearWheelSpin += 22f * dt
-                // Exhaust & tire dirt particles
-                spawnTireDirt(rearWheelX, rearWheelY, -cos(slopeAngle), -sin(slopeAngle))
-            } else if (isBrakePressed) {
-                // Braking friction
-                rearWheelVx *= (1f - dt * 6.5f)
-                if (chassisVx < 5f) {
-                    // Reverse gear
-                    val revAcc = 180f * enginePowerMultiplier * tireGripMultiplier
-                    rearWheelVx -= revAcc * dt * cos(slopeAngle)
-                    rearWheelVy -= revAcc * dt * sin(slopeAngle)
-                }
-            } else {
-                // Rolling resistance
-                rearWheelVx *= (1f - dt * 0.4f)
-            }
+            if (rearWheelVy > 0f) rearWheelVy = 0f
         } else {
             rearWheelVy += grav * dt
         }
 
-        // Front Wheel Ground Collision
-        val frontGroundY = getTerrainElevation(frontWheelX)
-        val frontDistToGround = (frontWheelY + vehicleType.wheelRadius) - frontGroundY
-        frontWheelOnGround = frontDistToGround >= 0f
+        // 2. Front Wheel Ground Contact (if not One-Wheeler)
+        if (!isOneWheeler) {
+            val frontGroundY = getTerrainElevation(frontWheelX)
+            val frontPenetration = (frontWheelY + vehicleType.wheelRadius) - frontGroundY
+            frontWheelOnGround = frontPenetration >= 0f
 
-        if (frontWheelOnGround) {
-            frontWheelY = frontGroundY - vehicleType.wheelRadius
-            if (frontWheelVy > 0f) {
-                frontWheelVy = -frontWheelVy * 0.12f
-            }
-            val slopeAngle = getTerrainSlope(frontWheelX)
-            frontWheelVy -= (grav * dt) * 0.85f
-
-            if (hasFuel && isGasPressed && vehicleType == VehicleType.MONSTER_TRUCK) {
-                // 4WD for monster truck
-                val driveAcc = 200f * enginePowerMultiplier * tireGripMultiplier
-                frontWheelVx += driveAcc * dt * cos(slopeAngle)
-                frontWheelVy += driveAcc * dt * sin(slopeAngle)
-            }
-            if (isBrakePressed) {
-                frontWheelVx *= (1f - dt * 6.5f)
+            if (frontWheelOnGround) {
+                frontWheelY = frontGroundY - vehicleType.wheelRadius
+                if (frontWheelVy > 0f) frontWheelVy = 0f
             } else {
-                frontWheelVx *= (1f - dt * 0.4f)
+                frontWheelVy += grav * dt
             }
         } else {
-            frontWheelVy += grav * dt
+            frontWheelOnGround = false
+            frontWheelX = chassisX
+            frontWheelY = rearWheelY
         }
 
-        // 2. Spring-damper forces connecting chassis to wheels
-        // Rear suspension vector
-        val rdx = rearWheelX - rearAnchorX
-        val rdy = rearWheelY - rearAnchorY
-        val rDist = sqrt(rdx * rdx + rdy * rdy)
-        val rDelta = rDist - suspLen
-        val rSpringForce = rDelta * suspensionStiffness
+        val onGround = rearWheelOnGround || frontWheelOnGround
 
-        // Front suspension vector
-        val fdx = frontWheelX - frontAnchorX
-        val fdy = frontWheelY - frontAnchorY
-        val fDist = sqrt(fdx * fdx + fdy * fdy)
-        val fDelta = fDist - suspLen
-        val fSpringForce = fDelta * suspensionStiffness
+        // 3. Driving, Braking & Engine Forces
+        if (onGround) {
+            val slopeAngle = getTerrainSlope(chassisX)
 
-        // Chassis Gravity
-        chassisVy += grav * dt
+            if (hasFuel && isGasPressed) {
+                // Forward drive acceleration along ground slope
+                val driveAcc = 420f * enginePower * tireGrip
+                chassisVx += driveAcc * dt * cos(slopeAngle)
+                chassisVy += driveAcc * dt * sin(slopeAngle)
 
-        // Forces on chassis from springs
-        if (rDist > 0.001f) {
-            val rDirX = rdx / rDist
-            val rDirY = rdy / rDist
-            chassisVx += (rDirX * rSpringForce / vehicleType.baseMass) * dt
-            chassisVy += (rDirY * rSpringForce / vehicleType.baseMass) * dt
-
-            // Torque on chassis: cross product
-            val rArmX = rearAnchorX - chassisX
-            val rArmY = rearAnchorY - chassisY
-            val torqueR = (rArmX * (rDirY * rSpringForce) - rArmY * (rDirX * rSpringForce))
-            chassisAngularVel += (torqueR / (vehicleType.baseMass * 35f)) * dt
-        }
-
-        if (fDist > 0.001f) {
-            val fDirX = fdx / fDist
-            val fDirY = fdy / fDist
-            chassisVx += (fDirX * fSpringForce / vehicleType.baseMass) * dt
-            chassisVy += (fDirY * fSpringForce / vehicleType.baseMass) * dt
-
-            val fArmX = frontAnchorX - chassisX
-            val fArmY = frontAnchorY - chassisY
-            val torqueF = (fArmX * (fDirY * fSpringForce) - fArmY * (fDirX * fSpringForce))
-            chassisAngularVel += (torqueF / (vehicleType.baseMass * 35f)) * dt
-        }
-
-        // 3. Air Control (Stunt Mechanics)
-        val currentlyAirborne = !rearWheelOnGround && !frontWheelOnGround
-        if (currentlyAirborne) {
-            airtimeSeconds += dt
-            if (airtimeSeconds > 0.45f) {
-                isAirborne = true
+                rearWheelSpin += (chassisVx / vehicleType.wheelRadius) * dt * 2.5f
+                spawnTireDirt(rearWheelX, rearWheelY, -cos(slopeAngle), -sin(slopeAngle))
+            } else if (isBrakePressed) {
+                // Braking friction
+                chassisVx *= (1f - dt * 5.5f)
+                if (chassisVx < 10f) {
+                    // Reverse torque when stopped
+                    val revAcc = 180f * enginePower * tireGrip
+                    chassisVx -= revAcc * dt * cos(slopeAngle)
+                    chassisVy -= revAcc * dt * sin(slopeAngle)
+                }
+            } else {
+                // Natural rolling friction
+                chassisVx *= (1f - dt * 0.35f)
             }
-            // In air: Gas pitches car back (up), Brake pitches car forward (down)
-            if (isGasPressed) {
-                chassisAngularVel += 4.5f * dt
-            }
-            if (isBrakePressed) {
-                chassisAngularVel -= 4.5f * dt
-            }
-            airborneRotationAccumulator += chassisAngularVel * dt
 
-            // Detect full 360 flips
-            if (airborneRotationAccumulator >= (2f * PI.toFloat() - 0.2f)) {
-                airborneRotationAccumulator -= (2f * PI.toFloat())
-                coinsCollectedScore += 250
-                floatingTexts.add(
-                    FloatingNotification(
-                        System.currentTimeMillis(),
-                        "BACKFLIP! +250",
-                        Color(0xFFFFD700),
-                        chassisX,
-                        chassisY - 60f,
-                        1.5f
-                    )
-                )
-                onSoundEvent("flip")
-            } else if (airborneRotationAccumulator <= -(2f * PI.toFloat() - 0.2f)) {
-                airborneRotationAccumulator += (2f * PI.toFloat())
-                coinsCollectedScore += 300
-                floatingTexts.add(
-                    FloatingNotification(
-                        System.currentTimeMillis(),
-                        "FRONTFLIP! +300",
-                        Color(0xFFFFD700),
-                        chassisX,
-                        chassisY - 60f,
-                        1.5f
-                    )
-                )
-                onSoundEvent("flip")
-            }
+            // Normal gravity component on slopes
+            chassisVy += grav * dt * 0.35f
         } else {
-            // Landed!
-            if (isAirborne && airtimeSeconds > 0.9f) {
-                val airtimeScore = (airtimeSeconds * 120f).toInt()
-                coinsCollectedScore += airtimeScore
-                totalAirtimeAccumulated += airtimeSeconds
+            // Free fall in air
+            chassisVy += grav * dt
+        }
+
+        // 4. Suspension spring-damper supporting the chassis
+        // Target vertical rest offset between chassis and wheels is suspLen
+        val avgWheelY = if (isOneWheeler) rearWheelY else (rearWheelY + frontWheelY) * 0.5f
+        val targetChassisY = avgWheelY - suspLen
+
+        if (onGround) {
+            val suspDeltaY = (targetChassisY - chassisY)
+            val suspForceY = suspDeltaY * suspensionStiffness - chassisVy * suspensionDamping
+            chassisVy += (suspForceY / vehicleType.baseMass) * dt
+        }
+
+        // 5. Angular Stabilization & Air Control
+        if (onGround) {
+            // Naturally righting torque: aligns chassis smoothly with the ground slope / wheel base angle
+            val targetAngle = if (!isOneWheeler && rearWheelOnGround && frontWheelOnGround) {
+                atan2(frontWheelY - rearWheelY, frontWheelX - rearWheelX)
+            } else {
+                getTerrainSlope(chassisX)
+            }
+
+            val angleDiff = chassisAngle - targetAngle
+            // Natural spring righting torque: keeps car upright naturally at spawn and on road
+            chassisAngularVel -= angleDiff * 14.0f * dt
+            // Strong angular damping on ground to prevent flipping
+            chassisAngularVel *= (1f - dt * 6.5f)
+
+            // Very gentle squat under hard gas acceleration (authentic hill climb feel)
+            if (isGasPressed && hasFuel && !isOneWheeler) {
+                if (chassisAngle > -0.12f) {
+                    chassisAngularVel -= 0.15f * dt * enginePower
+                }
+            }
+
+            // Reset airborne timers when safely grounded
+            if (isAirborne && airtimeSeconds > 0.8f) {
+                val score = (airtimeSeconds * 100f).toInt() * (if (isOneWheeler) 2 else 1)
+                coinsCollectedScore += score
                 floatingTexts.add(
                     FloatingNotification(
                         System.currentTimeMillis(),
-                        "AIRTIME ${"%.1f".format(airtimeSeconds)}s +$airtimeScore",
+                        "AIRTIME ${(airtimeSeconds * 100).toInt()} +$score",
                         Color(0xFF00E676),
                         chassisX,
                         chassisY - 50f,
@@ -465,102 +423,146 @@ class PhysicsEngine(
             isAirborne = false
             airtimeSeconds = 0f
             airborneRotationAccumulator = 0f
+        } else {
+            // IN THE AIR: Pitch controls for stunts!
+            airtimeSeconds += dt
+            if (airtimeSeconds > 0.35f) {
+                isAirborne = true
+            }
+
+            // Air pitch controls: Gas pitches back (backflip), Brake pitches forward (frontflip)
+            if (isGasPressed) {
+                chassisAngularVel -= 4.2f * dt
+            }
+            if (isBrakePressed) {
+                chassisAngularVel += 4.2f * dt
+            }
+
+            airborneRotationAccumulator += chassisAngularVel * dt
+
+            // Flips detection
+            if (airborneRotationAccumulator <= -(2f * PI.toFloat() - 0.25f)) {
+                airborneRotationAccumulator += (2f * PI.toFloat())
+                val bonus = if (isOneWheeler) 450 else 250
+                coinsCollectedScore += bonus
+                floatingTexts.add(
+                    FloatingNotification(
+                        System.currentTimeMillis(),
+                        "BACKFLIP! +$bonus",
+                        Color(0xFFFFD700),
+                        chassisX,
+                        chassisY - 60f,
+                        1.5f
+                    )
+                )
+                onSoundEvent("flip")
+            } else if (airborneRotationAccumulator >= (2f * PI.toFloat() - 0.25f)) {
+                airborneRotationAccumulator -= (2f * PI.toFloat())
+                val bonus = if (isOneWheeler) 550 else 300
+                coinsCollectedScore += bonus
+                floatingTexts.add(
+                    FloatingNotification(
+                        System.currentTimeMillis(),
+                        "FRONTFLIP! +$bonus",
+                        Color(0xFFFFD700),
+                        chassisX,
+                        chassisY - 60f,
+                        1.5f
+                    )
+                )
+                onSoundEvent("flip")
+            }
+
+            // Gentle air drag
+            chassisAngularVel *= (1f - dt * 0.8f)
         }
 
-        // Angular damping
-        chassisAngularVel *= (1f - dt * 2.8f)
+        // Clamp angular velocity
+        chassisAngularVel = chassisAngularVel.coerceIn(-8.5f, 8.5f)
 
-        // Integrate velocities to positions
+        // Integrate positions
         chassisX += chassisVx * dt
         chassisY += chassisVy * dt
         chassisAngle += chassisAngularVel * dt
 
-        rearWheelX += rearWheelVx * dt
-        rearWheelY += rearWheelVy * dt
-        frontWheelX += frontWheelVx * dt
-        frontWheelY += frontWheelVy * dt
+        // Keep wheels synchronized with chassis position
+        val curCosA = cos(chassisAngle)
+        val curSinA = sin(chassisAngle)
 
-        // Keep wheels constrained close to anchor
-        keepWheelInTether(rearAnchorX, rearAnchorY, isRear = true)
-        keepWheelInTether(frontAnchorX, frontAnchorY, isRear = false)
+        val targetRearX = chassisX - curCosA * halfBase
+        val targetFrontX = chassisX + curCosA * halfBase
 
-        // Update speed reading (km/h)
+        rearWheelX = targetRearX
+        if (!isOneWheeler) {
+            frontWheelX = targetFrontX
+        } else {
+            frontWheelX = chassisX
+        }
+
+        rearWheelVx = chassisVx
+        frontWheelVx = chassisVx
+
+        // Update speed and distance from spawn point (180f)
         val speedMagnitude = sqrt(chassisVx * chassisVx + chassisVy * chassisVy)
         currentSpeedKmh = speedMagnitude * 0.16f
+        distanceMeters = max(0, ((chassisX - 180f) / 26f).toInt())
 
-        // Distance updated
-        distanceMeters = max(distanceMeters, (chassisX / 26f).toInt())
+        // 6. Driver Crash Detection
+        // Completely IMMUNE during spawn grace timer and on the first 35m runway
+        if (spawnGraceTimer <= 0f && distanceMeters >= 35) {
+            val normalizedAngle = ((chassisAngle % (2f * PI.toFloat())) + 2f * PI.toFloat()) % (2f * PI.toFloat())
+            // Only upside-down inverted poses (between ~125 deg and ~235 deg) can cause a flip crash
+            val isUpsideDown = normalizedAngle in 2.2f..4.1f
 
-        // 4. Driver Head Position & Crash Detection
-        val driverHeadOffsetX = -sinA * 28f
-        val driverHeadOffsetY = -cosA * 28f
-        val driverHeadX = chassisX + driverHeadOffsetX
-        val driverHeadY = chassisY + driverHeadOffsetY
+            if (isUpsideDown) {
+                val driverHeadOffsetX = sin(chassisAngle) * 24f
+                val driverHeadOffsetY = -cos(chassisAngle) * 24f
+                val driverHeadX = chassisX + driverHeadOffsetX
+                val driverHeadY = chassisY + driverHeadOffsetY
+                val groundAtHead = getTerrainElevation(driverHeadX)
 
-        val groundAtDriverHead = getTerrainElevation(driverHeadX)
-        if (driverHeadY >= groundAtDriverHead - 4f) {
-            // Head hit ground! Fatal crash
-            perfectRunEligible = false
-            onSoundEvent("crash")
-            spawnCrashExplosion(chassisX, chassisY)
-            return GameState.GAME_OVER_FLIPPED
+                // Head actually firmly hitting the ground while upside down
+                if (driverHeadY >= groundAtHead - 2f) {
+                    onSoundEvent("crash")
+                    spawnCrashExplosion(chassisX, chassisY)
+                    return GameState.GAME_OVER_FLIPPED
+                }
+
+                // Or completely stuck upside down on ground
+                if (onGround && speedMagnitude < 20f) {
+                    onSoundEvent("crash")
+                    return GameState.GAME_OVER_FLIPPED
+                }
+            }
         }
 
-        // Extreme tilt crash (e.g. resting completely inverted on roof)
-        val normalizedAngle = ((chassisAngle % (2f * PI.toFloat())) + 2f * PI.toFloat()) % (2f * PI.toFloat())
-        if (normalizedAngle in (1.9f)..(4.4f) && rearWheelOnGround && frontWheelOnGround) {
-            perfectRunEligible = false
-            onSoundEvent("crash")
-            return GameState.GAME_OVER_FLIPPED
-        }
-
-        // 5. Collectibles & Obstacle Collisions
+        // 7. Collectibles & Obstacles
         checkCoinPickups(onSoundEvent)
         checkFuelPickups(onSoundEvent)
         updateObstacles(dt, onSoundEvent)
         updateParticles(dt)
         updateFloatingTexts(dt)
 
-        // 6. Finish line reached?
-        if (chassisX >= trackEndWorldX) {
-            onSoundEvent("win")
-            return GameState.LEVEL_COMPLETED
-        }
-
-        // 7. Out of fuel & stopped?
-        if (currentFuel <= 0.001f && speedMagnitude < 3.5f) {
-            onSoundEvent("fuel_empty")
-            return GameState.GAME_OVER_FUEL
+        // 8. Out of Fuel Check (Endless Mode)
+        if (currentFuel <= 0.001f) {
+            if (speedMagnitude < 3.0f) {
+                outOfFuelTimer += dt
+                if (outOfFuelTimer > 1.8f) {
+                    onSoundEvent("fuel_empty")
+                    return GameState.GAME_OVER_FUEL
+                }
+            } else {
+                outOfFuelTimer = 0f
+            }
+        } else {
+            outOfFuelTimer = 0f
         }
 
         return GameState.PLAYING
     }
 
-    private fun keepWheelInTether(anchorX: Float, anchorY: Float, isRear: Boolean) {
-        val maxExtent = vehicleType.suspensionLength * 1.5f
-        val minExtent = vehicleType.suspensionLength * 0.35f
-        val wx = if (isRear) rearWheelX else frontWheelX
-        val wy = if (isRear) rearWheelY else frontWheelY
-
-        val dx = wx - anchorX
-        val dy = wy - anchorY
-        val d = sqrt(dx * dx + dy * dy)
-
-        if (d > maxExtent && d > 0.001f) {
-            val clampedX = anchorX + (dx / d) * maxExtent
-            val clampedY = anchorY + (dy / d) * maxExtent
-            if (isRear) {
-                rearWheelX = clampedX
-                rearWheelY = clampedY
-            } else {
-                frontWheelX = clampedX
-                frontWheelY = clampedY
-            }
-        }
-    }
-
     private fun checkCoinPickups(onSoundEvent: (String) -> Unit) {
-        val pickupRadiusSq = 44f * 44f
+        val pickupRadiusSq = 48f * 48f
         for (coin in coins) {
             if (!coin.collected) {
                 val dx = chassisX - coin.x
@@ -569,15 +571,15 @@ class PhysicsEngine(
                     coin.collected = true
                     coinsCollectedCount++
                     coinsCollectedScore += coin.value
-                    spawnCoinSparkles(coin.x, coin.y)
+                    spawnCoinSparkles(coin.x, coin.y, coin.value)
                     floatingTexts.add(
                         FloatingNotification(
                             System.currentTimeMillis() + coin.id,
                             "+${coin.value}",
-                            Color(0xFFFFD700),
+                            if (coin.value >= 500) Color(0xFFFF4081) else Color(0xFFFFD700),
                             coin.x,
-                            coin.y - 15f,
-                            0.9f
+                            coin.y - 18f,
+                            0.95f
                         )
                     )
                     onSoundEvent("coin")
@@ -587,7 +589,7 @@ class PhysicsEngine(
     }
 
     private fun checkFuelPickups(onSoundEvent: (String) -> Unit) {
-        val pickupRadiusSq = 48f * 48f
+        val pickupRadiusSq = 52f * 52f
         for (can in fuelCans) {
             if (!can.collected) {
                 val dx = chassisX - can.x
@@ -602,10 +604,11 @@ class PhysicsEngine(
                             "FUEL +100%!",
                             Color(0xFFFF3D00),
                             can.x,
-                            can.y - 25f,
+                            can.y - 28f,
                             1.4f
                         )
                     )
+                    spawnFuelGlow(can.x, can.y)
                     onSoundEvent("fuel")
                 }
             }
@@ -617,33 +620,51 @@ class PhysicsEngine(
             if (!obs.isDestroyed) {
                 val dx = chassisX - obs.x
                 val dy = chassisY - obs.y
-                val dist = sqrt(dx * dx + dy * dy)
-                if (dist < 46f) {
-                    // Impact! Break or launch obstacle
-                    obs.vx = chassisVx * 0.8f + (Random.nextFloat() * 120f - 60f)
-                    obs.vy = -140f - Random.nextFloat() * 100f
-                    obs.vRot = Random.nextFloat() * 15f - 7.5f
+                val distSq = dx * dx + dy * dy
+                val hitDist = (vehicleType.wheelRadius + obs.width * 0.5f)
+
+                if (distSq < hitDist * hitDist) {
+                    // Smash obstacle!
+                    obs.vx = chassisVx * 0.85f + Random.nextFloat() * 60f
+                    obs.vy = -120f - Random.nextFloat() * 100f
+                    obs.vRot = (Random.nextFloat() - 0.5f) * 16f
                     obs.isDestroyed = true
-                    onSoundEvent("hit")
-                    spawnObstacleDebris(obs.x, obs.y, obs.type)
+                    chassisVx *= 0.85f
+
+                    // Spawn splinter particles
+                    for (i in 0 until 6) {
+                        particles.add(
+                            Particle(
+                                x = obs.x,
+                                y = obs.y,
+                                vx = (Random.nextFloat() - 0.5f) * 140f,
+                                vy = -Random.nextFloat() * 120f,
+                                color = if (obs.type == ObstacleType.WOOD_CRATE) Color(0xFF8D6E63) else Color(0xFF455A64),
+                                initialRadius = 3.5f,
+                                currentRadius = 3.5f,
+                                life = 0.6f,
+                                maxLife = 0.6f
+                            )
+                        )
+                    }
+                    onSoundEvent("obstacle_hit")
                 }
             } else {
-                // Flying debris physics
-                obs.vy += 450f * dt
                 obs.x += obs.vx * dt
                 obs.y += obs.vy * dt
+                obs.vy += 450f * dt
                 obs.angle += obs.vRot * dt
             }
         }
     }
 
     private fun updateParticles(dt: Float) {
-        val iter = particles.iterator()
-        while (iter.hasNext()) {
-            val p = iter.next()
+        val it = particles.iterator()
+        while (it.hasNext()) {
+            val p = it.next()
             p.life -= dt
             if (p.life <= 0f) {
-                iter.remove()
+                it.remove()
             } else {
                 p.x += p.vx * dt
                 p.y += p.vy * dt
@@ -653,28 +674,27 @@ class PhysicsEngine(
     }
 
     private fun updateFloatingTexts(dt: Float) {
-        val iter = floatingTexts.iterator()
-        while (iter.hasNext()) {
-            val ft = iter.next()
-            ft.life -= dt
-            if (ft.life <= 0f) {
-                iter.remove()
+        val it = floatingTexts.iterator()
+        while (it.hasNext()) {
+            val fn = it.next()
+            fn.life -= dt
+            if (fn.life <= 0f) {
+                it.remove()
             } else {
-                ft.y -= 26f * dt
+                fn.y -= 28f * dt
             }
         }
     }
 
     private fun spawnTireDirt(x: Float, y: Float, dirX: Float, dirY: Float) {
-        if (particles.size > 80) return
-        for (i in 0 until 2) {
+        if (particles.size < 50 && Random.nextFloat() < 0.45f) {
             particles.add(
                 Particle(
-                    x = x + Random.nextFloat() * 8f - 4f,
-                    y = y + Random.nextFloat() * 4f,
-                    vx = dirX * (40f + Random.nextFloat() * 70f) + Random.nextFloat() * 30f - 15f,
-                    vy = -20f - Random.nextFloat() * 40f,
-                    color = levelInfo.environment.hillSubsurfaceColor,
+                    x = x + (Random.nextFloat() - 0.5f) * 6f,
+                    y = y + 4f,
+                    vx = dirX * (40f + Random.nextFloat() * 40f),
+                    vy = dirY * 30f - Random.nextFloat() * 40f,
+                    color = stage.hillSubsurfaceColor.copy(alpha = 0.7f),
                     initialRadius = 3.5f,
                     currentRadius = 3.5f,
                     life = 0.45f,
@@ -684,19 +704,40 @@ class PhysicsEngine(
         }
     }
 
-    private fun spawnCoinSparkles(x: Float, y: Float) {
-        for (i in 0 until 8) {
+    private fun spawnCoinSparkles(x: Float, y: Float, value: Int) {
+        val count = if (value >= 100) 10 else 6
+        for (i in 0 until count) {
             val ang = Random.nextFloat() * 2f * PI.toFloat()
-            val spd = 40f + Random.nextFloat() * 70f
+            val spd = 50f + Random.nextFloat() * 70f
             particles.add(
                 Particle(
                     x = x,
                     y = y,
                     vx = cos(ang) * spd,
                     vy = sin(ang) * spd,
-                    color = Color(0xFFFFEB3B),
-                    initialRadius = 4.0f,
-                    currentRadius = 4.0f,
+                    color = if (value >= 500) Color(0xFFFF4081) else Color(0xFFFFD700),
+                    initialRadius = 4f,
+                    currentRadius = 4f,
+                    life = 0.5f,
+                    maxLife = 0.5f
+                )
+            )
+        }
+    }
+
+    private fun spawnFuelGlow(x: Float, y: Float) {
+        for (i in 0 until 8) {
+            val ang = Random.nextFloat() * 2f * PI.toFloat()
+            val spd = 40f + Random.nextFloat() * 60f
+            particles.add(
+                Particle(
+                    x = x,
+                    y = y,
+                    vx = cos(ang) * spd,
+                    vy = sin(ang) * spd,
+                    color = Color(0xFFFF3D00),
+                    initialRadius = 4.5f,
+                    currentRadius = 4.5f,
                     life = 0.6f,
                     maxLife = 0.6f
                 )
@@ -705,40 +746,18 @@ class PhysicsEngine(
     }
 
     private fun spawnCrashExplosion(x: Float, y: Float) {
-        for (i in 0 until 20) {
+        for (i in 0 until 16) {
             val ang = Random.nextFloat() * 2f * PI.toFloat()
-            val spd = 60f + Random.nextFloat() * 120f
-            val col = if (Random.nextBoolean()) Color(0xFFFF5722) else Color(0xFFFFC107)
+            val spd = 60f + Random.nextFloat() * 140f
             particles.add(
                 Particle(
                     x = x,
                     y = y,
                     vx = cos(ang) * spd,
                     vy = sin(ang) * spd,
-                    color = col,
-                    initialRadius = 6.0f,
-                    currentRadius = 6.0f,
-                    life = 0.8f,
-                    maxLife = 0.8f
-                )
-            )
-        }
-    }
-
-    private fun spawnObstacleDebris(x: Float, y: Float, type: ObstacleType) {
-        val col = if (type == ObstacleType.WOOD_CRATE) Color(0xFF8D6E63) else Color(0xFF455A64)
-        for (i in 0 until 10) {
-            val ang = Random.nextFloat() * 2f * PI.toFloat()
-            val spd = 50f + Random.nextFloat() * 90f
-            particles.add(
-                Particle(
-                    x = x,
-                    y = y,
-                    vx = cos(ang) * spd,
-                    vy = sin(ang) * spd,
-                    color = col,
-                    initialRadius = 4.5f,
-                    currentRadius = 4.5f,
+                    color = if (Random.nextBoolean()) Color(0xFFFF1744) else Color(0xFFFFD600),
+                    initialRadius = 5f,
+                    currentRadius = 5f,
                     life = 0.7f,
                     maxLife = 0.7f
                 )

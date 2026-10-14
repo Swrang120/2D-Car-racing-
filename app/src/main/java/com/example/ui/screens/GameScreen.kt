@@ -74,9 +74,7 @@ fun GameScreen(
     val gameState by viewModel.gameState.collectAsState()
     val physicsEngine by viewModel.physicsEngine.collectAsState()
     val totalCoins by viewModel.repository.totalCoins.collectAsState()
-    val currentLevel by viewModel.repository.currentLevel.collectAsState()
     val isNewRecord by viewModel.isNewRecord.collectAsState()
-    val perfectRunBonus by viewModel.perfectRunBonusAwarded.collectAsState()
 
     var keyboardGasPressed by remember { mutableStateOf(false) }
     var keyboardBrakePressed by remember { mutableStateOf(false) }
@@ -136,8 +134,8 @@ fun GameScreen(
                 // 2. Heads-Up Display (Top)
                 GameHud(
                     distanceMeters = engine.distanceMeters,
-                    targetDistanceMeters = engine.levelInfo.lengthMeters,
-                    bestDistanceMeters = viewModel.repository.getBestDistance(engine.levelInfo.levelNumber),
+                    bestDistanceMeters = viewModel.repository.getBestDistance(engine.stage),
+                    stageName = engine.stage.stageName,
                     currentFuel = engine.currentFuel,
                     maxFuel = engine.maxFuel,
                     coinsEarnedInRun = engine.coinsCollectedScore,
@@ -224,22 +222,9 @@ fun GameScreen(
                         isFlipped = gameState == GameState.GAME_OVER_FLIPPED,
                         distanceMeters = physicsEngine?.distanceMeters ?: 0,
                         coinsEarned = physicsEngine?.coinsCollectedScore ?: 0,
+                        stageName = physicsEngine?.stage?.stageName ?: "",
                         isNewRecord = isNewRecord,
                         onRetry = { viewModel.restartRace() },
-                        onGarage = {
-                            viewModel.returnToGarage()
-                            onNavigateToGarage()
-                        }
-                    )
-                }
-
-                GameState.LEVEL_COMPLETED -> {
-                    LevelCompleteOverlay(
-                        levelNumber = currentLevel,
-                        distanceMeters = physicsEngine?.distanceMeters ?: 0,
-                        coinsEarned = physicsEngine?.coinsCollectedScore ?: 0,
-                        perfectBonus = perfectRunBonus,
-                        onNextLevel = { viewModel.nextLevel() },
                         onGarage = {
                             viewModel.returnToGarage()
                             onNavigateToGarage()
@@ -367,6 +352,7 @@ private fun GameOverOverlay(
     isFlipped: Boolean,
     distanceMeters: Int,
     coinsEarned: Int,
+    stageName: String = "",
     isNewRecord: Boolean,
     onRetry: () -> Unit,
     onGarage: () -> Unit
@@ -404,6 +390,15 @@ private fun GameOverOverlay(
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Black
                 )
+
+                if (stageName.isNotEmpty()) {
+                    Text(
+                        text = "STAGE: ${stageName.uppercase()}",
+                        color = Color(0xFF38BDF8),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
 
                 Text(
                     text = if (isFlipped) "Vehicle flipped on rough terrain" else "Fuel tank completely drained",
@@ -478,130 +473,6 @@ private fun GameOverOverlay(
                         .fillMaxWidth()
                         .height(48.dp)
                         .testTag("game_over_garage_button"),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.Build, contentDescription = "Garage")
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("GARAGE & UPGRADES", fontWeight = FontWeight.Bold, color = Color.White)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun LevelCompleteOverlay(
-    levelNumber: Int,
-    distanceMeters: Int,
-    coinsEarned: Int,
-    perfectBonus: Int,
-    onNextLevel: () -> Unit,
-    onGarage: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.82f)),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .width(320.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF1E293B))
-                .border(2.dp, Color(0xFF10B981), RoundedCornerShape(20.dp))
-                .padding(24.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Celebration,
-                    contentDescription = "Victory",
-                    tint = Color(0xFFFFD700),
-                    modifier = Modifier.size(48.dp)
-                )
-
-                Text(
-                    text = "LEVEL $levelNumber COMPLETE!",
-                    color = Color(0xFF10B981),
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Black
-                )
-
-                if (perfectBonus > 0) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF047857))
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Star, "Perfect", tint = Color(0xFFFFD700), modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "PERFECT RUN BONUS! +$perfectBonus 🪙",
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.ExtraBold
-                            )
-                        }
-                    }
-                }
-
-                // Stats Box
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF0F172A))
-                        .padding(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceAround
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("DISTANCE", color = Color(0xFF64748B), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            Text("${distanceMeters}m", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
-                        }
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("REWARD", color = Color(0xFF64748B), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.MonetizationOn, "Coins", tint = Color(0xFFFFD700), modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(3.dp))
-                                Text("+$coinsEarned", color = Color(0xFFFFE082), fontSize = 18.sp, fontWeight = FontWeight.Black)
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // Next Level Button
-                Button(
-                    onClick = onNextLevel,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .testTag("next_level_button"),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981))
-                ) {
-                    Text("NEXT LEVEL", fontWeight = FontWeight.Black)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Icon(imageVector = Icons.Default.ArrowForward, contentDescription = "Next")
-                }
-
-                // Garage Button
-                OutlinedButton(
-                    onClick = onGarage,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp)
-                        .testTag("win_garage_button"),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(imageVector = Icons.Default.Build, contentDescription = "Garage")
