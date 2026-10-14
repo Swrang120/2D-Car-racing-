@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Hill Climb Racing - 2D Physics Game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Hill Climb Racing - 2D Physics Racing Game</title>
     <style>
         * {
             box-sizing: border-box;
@@ -11,17 +11,17 @@
             padding: 0;
             user-select: none;
             -webkit-user-select: none;
-            touch-action: manipulation;
+            touch-action: none;
         }
         body, html {
             width: 100%;
             height: 100%;
             overflow: hidden;
             background-color: #0f172a;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             color: #ffffff;
         }
-        #game-container {
+        #app-root {
             position: relative;
             width: 100%;
             height: 100%;
@@ -29,771 +29,1685 @@
             flex-direction: column;
             background: #0f172a;
         }
-        canvas {
+
+        /* -------------------------------------------------------------
+           GARAGE / MAIN SCREEN (Matching Android GarageScreen.kt)
+        ------------------------------------------------------------- */
+        #garage-screen {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            background: #0f172a;
+            z-index: 10;
+        }
+        .top-app-bar {
+            background: #1e293b;
+            padding: 10px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #334155;
+            z-index: 2;
+        }
+        .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .brand-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, #ef4444, #b91c1c);
+            border-radius: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4);
+        }
+        .brand-text h1 {
+            font-size: 15px;
+            font-weight: 900;
+            letter-spacing: 0.5px;
+            color: #ffffff;
+        }
+        .brand-text p {
+            font-size: 10px;
+            color: #38bdf8;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .top-badges {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .badge {
+            background: #0f172a;
+            border: 1.5px solid #475569;
+            border-radius: 20px;
+            padding: 5px 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 800;
+        }
+        .badge-stage {
+            border-color: #38bdf8;
+            color: #38bdf8;
+        }
+        .badge-coins {
+            border-color: #f59e0b;
+            color: #ffd700;
+        }
+        .icon-btn {
+            width: 36px;
+            height: 36px;
+            background: #334155;
+            border: none;
+            border-radius: 50%;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        /* Showcase Area */
+        .showcase-area {
+            flex: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 75%);
+        }
+        #showcase-canvas {
+            width: 100%;
+            height: 52%;
+            display: block;
+        }
+        .vehicle-meta {
+            text-align: center;
+            margin-top: 6px;
+        }
+        .vehicle-meta h2 {
+            font-size: 22px;
+            font-weight: 900;
+            color: #ffffff;
+        }
+        .vehicle-meta p {
+            font-size: 12px;
+            color: #94a3b8;
+            max-width: 360px;
+            margin: 4px auto 8px;
+            padding: 0 16px;
+        }
+        /* Stats Panel */
+        .specs-panel {
+            background: rgba(30, 41, 59, 0.9);
+            border: 1.5px solid #334155;
+            border-radius: 16px;
+            padding: 10px 16px;
+            width: 90%;
+            max-width: 440px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 16px;
+            margin-bottom: 8px;
+        }
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            font-weight: 700;
+            color: #94a3b8;
+        }
+        .stat-header span:last-child {
+            color: #38bdf8;
+            font-weight: 800;
+        }
+        .stat-bar {
+            height: 6px;
+            background: #0f172a;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .stat-fill {
+            height: 100%;
+            background: #38bdf8;
+            border-radius: 3px;
+        }
+        .best-record-banner {
+            font-size: 11px;
+            font-weight: 800;
+            color: #ffd700;
+            background: rgba(15, 23, 42, 0.7);
+            padding: 4px 14px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 215, 0, 0.3);
+        }
+
+        /* Bottom Garage Nav */
+        .bottom-nav {
+            background: #1e293b;
+            padding: 10px 16px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            border-top: 1px solid #334155;
+            z-index: 2;
+        }
+        .nav-btn {
+            flex: 1;
+            height: 52px;
+            background: #334155;
+            border: 1px solid #475569;
+            border-radius: 12px;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+        .nav-btn:active {
+            transform: scale(0.96);
+            background: #475569;
+        }
+        .nav-btn .icon {
+            font-size: 16px;
+        }
+        .nav-btn span {
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+        }
+        .start-race-btn {
+            flex: 1.5;
+            height: 52px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            border: none;
+            border-radius: 14px;
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 900;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+            transition: all 0.1s;
+        }
+        .start-race-btn:active {
+            transform: scale(0.96);
+        }
+
+        /* -------------------------------------------------------------
+           RACE SCREEN & HUD (Matching Android GameScreen.kt)
+        ------------------------------------------------------------- */
+        #race-screen {
+            position: absolute;
+            inset: 0;
+            display: none;
+            background: #000000;
+            z-index: 5;
+        }
+        #game-canvas {
             width: 100%;
             height: 100%;
             display: block;
         }
-        /* Top HUD */
-        #hud {
+        .race-hud {
             position: absolute;
-            top: 12px;
+            top: 10px;
             left: 12px;
             right: 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             pointer-events: none;
-            z-index: 10;
+            z-index: 6;
         }
-        .hud-card {
+        .hud-pill {
             background: rgba(15, 23, 42, 0.85);
             border: 1.5px solid #38bdf8;
-            border-radius: 12px;
+            border-radius: 14px;
             padding: 6px 14px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
             display: flex;
             align-items: center;
             gap: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            pointer-events: auto;
         }
-        .hud-label {
-            font-size: 11px;
-            color: #94a3b8;
-            font-weight: 700;
-            text-transform: uppercase;
+        .hud-pill.fuel {
+            border-color: #10b981;
+            width: 170px;
         }
-        .hud-val {
-            font-size: 17px;
-            font-weight: 900;
-            color: #ffffff;
+        .hud-pill.critical-fuel {
+            border-color: #ef4444;
+            animation: pulse-border 0.6s infinite alternate;
         }
-        .fuel-bar-container {
-            width: 140px;
-            height: 14px;
+        @keyframes pulse-border {
+            from { border-color: #ef4444; box-shadow: 0 0 8px #ef4444; }
+            to { border-color: #7f1d1d; box-shadow: none; }
+        }
+        .fuel-bar-wrap {
+            flex: 1;
+            height: 12px;
             background: #334155;
-            border-radius: 7px;
+            border-radius: 6px;
             overflow: hidden;
-            margin-top: 3px;
+            margin-top: 2px;
         }
-        .fuel-bar {
+        .fuel-bar-fill {
             height: 100%;
             width: 100%;
             background: #10b981;
-            transition: width 0.1s linear, background-color 0.2s;
+            transition: width 0.08s linear;
         }
-        /* Touch Pedals */
-        #controls {
+        .hud-meta-label {
+            font-size: 9px;
+            color: #38bdf8;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+        .hud-meta-val {
+            font-size: 16px;
+            font-weight: 900;
+            color: #ffffff;
+        }
+
+        /* Bottom Controls Cockpit */
+        .bottom-cockpit {
             position: absolute;
-            bottom: 20px;
-            left: 20px;
-            right: 20px;
+            bottom: 12px;
+            left: 14px;
+            right: 14px;
             display: flex;
             justify-content: space-between;
             align-items: flex-end;
             pointer-events: none;
-            z-index: 10;
+            z-index: 6;
         }
-        .pedal-btn {
+        .pedal {
             pointer-events: auto;
-            width: 110px;
-            height: 90px;
-            background: linear-gradient(180deg, #64748b, #334155);
-            border: 3px solid #cbd5e1;
-            border-radius: 16px;
+            width: 105px;
+            height: 110px;
+            background: linear-gradient(180deg, #94a3b8, #475569 40%, #1e293b);
+            border: 3.5px solid #f1f5f9;
+            border-radius: 18px;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            box-shadow: 0 6px 14px rgba(0,0,0,0.6);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.7);
             cursor: pointer;
-            transition: transform 0.05s, background 0.05s;
+            transition: transform 0.05s, border-color 0.05s;
         }
-        .pedal-btn:active, .pedal-btn.active {
-            transform: translateY(6px);
-            background: linear-gradient(180deg, #475569, #1e293b);
-            border-color: #94a3b8;
+        .pedal:active, .pedal.active {
+            transform: translateY(8px);
+            background: linear-gradient(180deg, #475569, #334155 40%, #0f172a);
+            border-color: #cbd5e1;
         }
-        .pedal-btn span {
-            font-size: 18px;
+        .pedal .pedal-name {
+            font-size: 19px;
             font-weight: 900;
             letter-spacing: 1px;
+            color: #ffffff;
         }
-        .pedal-btn small {
-            font-size: 10px;
+        .pedal .pedal-sub {
+            font-size: 9px;
             color: #cbd5e1;
-            font-weight: 600;
+            font-weight: 800;
+            margin-top: 2px;
         }
-        /* Modals / Overlays */
-        .overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(15, 23, 42, 0.88);
+        .gauges-center {
             display: flex;
-            justify-content: center;
+            gap: 12px;
             align-items: center;
-            z-index: 20;
-            backdrop-filter: blur(4px);
+            margin-bottom: 6px;
         }
-        .modal-box {
+        .dial {
+            width: 74px;
+            height: 74px;
+            background: radial-gradient(circle, #1e293b, #0f172a);
+            border: 3px solid #475569;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+            position: relative;
+        }
+        .dial-label {
+            font-size: 9px;
+            font-weight: 800;
+            color: #94a3b8;
+        }
+        .dial-val {
+            font-size: 15px;
+            font-weight: 900;
+            color: #ffffff;
+        }
+
+        /* -------------------------------------------------------------
+           MODALS & OVERLAYS (Matching Android Modals)
+        ------------------------------------------------------------- */
+        .modal-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.82);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            backdrop-filter: blur(5px);
+        }
+        .modal-dialog {
             background: #1e293b;
             border: 2px solid #38bdf8;
             border-radius: 20px;
-            padding: 24px;
-            max-width: 480px;
             width: 90%;
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            max-width: 480px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            padding: 18px;
+            box-shadow: 0 10px 35px rgba(0,0,0,0.8);
         }
-        .modal-title {
-            font-size: 26px;
-            font-weight: 900;
-            margin-bottom: 8px;
-            color: #ffffff;
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #334155;
         }
-        .modal-desc {
-            font-size: 14px;
-            color: #94a3b8;
-            margin-bottom: 20px;
-        }
-        .btn-primary {
-            background: #10b981;
-            color: #ffffff;
-            border: none;
-            padding: 12px 28px;
-            border-radius: 12px;
+        .modal-header h3 {
             font-size: 16px;
-            font-weight: 800;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
-            margin: 6px;
-            transition: transform 0.1s, opacity 0.1s;
-        }
-        .btn-primary:hover {
-            opacity: 0.92;
-        }
-        .btn-primary:active {
-            transform: scale(0.96);
-        }
-        .btn-secondary {
-            background: #334155;
+            font-weight: 900;
             color: #ffffff;
-            border: 1.5px solid #64748b;
-            padding: 12px 24px;
-            border-radius: 12px;
-            font-size: 15px;
-            font-weight: 700;
-            cursor: pointer;
-            margin: 6px;
         }
-        .grid-options {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin: 16px 0;
-            max-height: 240px;
+        .close-btn {
+            width: 30px;
+            height: 30px;
+            background: #334155;
+            border: none;
+            border-radius: 50%;
+            color: #ffffff;
+            font-weight: 900;
+            cursor: pointer;
+        }
+        .modal-body {
             overflow-y: auto;
+            flex: 1;
+            padding: 12px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
-        .option-card {
+        .card-row {
             background: #0f172a;
-            border: 2px solid #475569;
-            border-radius: 12px;
-            padding: 10px;
+            border: 1.5px solid #334155;
+            border-radius: 14px;
+            padding: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
             cursor: pointer;
-            font-size: 13px;
-            font-weight: 700;
             transition: all 0.15s;
         }
-        .option-card.selected {
+        .card-row.selected {
             border-color: #10b981;
-            background: #064e3b;
+            background: rgba(16, 185, 129, 0.1);
         }
-        .stat-badge {
-            font-size: 20px;
+        .card-info h4 {
+            font-size: 14px;
+            font-weight: 800;
+            color: #ffffff;
+        }
+        .card-info p {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+        .card-btn {
+            padding: 8px 16px;
+            border-radius: 10px;
+            border: none;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .card-btn.select {
+            background: #334155;
+            color: #ffffff;
+        }
+        .card-btn.selected-badge {
+            background: #10b981;
+            color: #ffffff;
+        }
+        .card-btn.unlock {
+            background: #f59e0b;
+            color: #ffffff;
+        }
+
+        /* Game Over Dialog */
+        .gameover-dialog {
+            border-color: #ef4444;
+            text-align: center;
+            padding: 24px;
+        }
+        .gameover-icon {
+            font-size: 48px;
+            margin-bottom: 8px;
+        }
+        .gameover-title {
+            font-size: 24px;
             font-weight: 900;
-            color: #ffd700;
-            margin: 10px 0;
+            color: #ef4444;
+        }
+        .gameover-desc {
+            font-size: 13px;
+            color: #94a3b8;
+            margin-bottom: 16px;
+        }
+        .gameover-stats {
+            background: #0f172a;
+            border-radius: 12px;
+            padding: 14px;
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 18px;
+        }
+        .action-btn-red {
+            width: 100%;
+            height: 48px;
+            background: #ef4444;
+            color: #ffffff;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 800;
+            cursor: pointer;
+            margin-bottom: 8px;
+        }
+        .action-btn-outline {
+            width: 100%;
+            height: 48px;
+            background: transparent;
+            color: #ffffff;
+            border: 1.5px solid #475569;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
-    <div id="game-container">
-        <!-- Live Game Canvas -->
-        <canvas id="gameCanvas"></canvas>
-
-        <!-- Top HUD -->
-        <div id="hud">
-            <div class="hud-card">
-                <div>
-                    <div class="hud-label" id="stage-badge">Countryside</div>
-                    <div class="hud-val" id="dist-val">0m</div>
+    <div id="app-root">
+        <!-- 1. GARAGE SCREEN (Matches Android GarageScreen) -->
+        <div id="garage-screen">
+            <!-- Top App Bar -->
+            <div class="top-app-bar">
+                <div class="brand-logo">
+                    <div class="brand-icon">🏎️</div>
+                    <div class="brand-text">
+                        <h1>HILL CLIMB RACING</h1>
+                        <p id="top-stage-sub">ENDLESS MODE • COUNTRYSIDE</p>
+                    </div>
+                </div>
+                <div class="top-badges">
+                    <div class="badge badge-coins" id="top-coins-badge">🪙 500</div>
+                    <button class="icon-btn" id="btn-sound-toggle" title="Sound Mute/Unmute">🔊</button>
                 </div>
             </div>
-            <div class="hud-card">
-                <div>
-                    <div class="hud-label">Fuel</div>
-                    <div class="fuel-bar-container">
-                        <div class="fuel-bar" id="fuel-bar"></div>
+
+            <!-- Vehicle Showcase Area -->
+            <div class="showcase-area">
+                <canvas id="showcase-canvas"></canvas>
+
+                <div class="vehicle-meta">
+                    <h2 id="showcase-title">Classic Red Jeep</h2>
+                    <p id="showcase-desc">Free starter. Reliable 4x4 with balanced climbing stability.</p>
+                    <div class="best-record-banner" id="showcase-record">BEST RECORD (COUNTRYSIDE): 0m</div>
+                </div>
+
+                <!-- Stats progress bars -->
+                <div class="specs-panel">
+                    <div class="stat-item">
+                        <div class="stat-header"><span>ENGINE</span><span id="stat-engine-lvl">LVL 1/10</span></div>
+                        <div class="stat-bar"><div class="stat-fill" id="stat-engine-fill" style="width: 10%; background: #ef4444;"></div></div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-header"><span>SUSPENSION</span><span id="stat-susp-lvl">LVL 1/10</span></div>
+                        <div class="stat-bar"><div class="stat-fill" id="stat-susp-fill" style="width: 10%; background: #38bdf8;"></div></div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-header"><span>TIRES</span><span id="stat-tires-lvl">LVL 1/10</span></div>
+                        <div class="stat-bar"><div class="stat-fill" id="stat-tires-fill" style="width: 10%; background: #f59e0b;"></div></div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-header"><span>4WD & FUEL</span><span id="stat-fuel-lvl">LVL 1/10</span></div>
+                        <div class="stat-bar"><div class="stat-fill" id="stat-fuel-fill" style="width: 10%; background: #10b981;"></div></div>
                     </div>
                 </div>
             </div>
-            <div class="hud-card">
-                <div>
-                    <div class="hud-label">Coins</div>
-                    <div class="hud-val" id="coins-val">🪙 0</div>
-                </div>
+
+            <!-- Bottom Navigation Bar -->
+            <div class="bottom-nav">
+                <button class="nav-btn" id="nav-btn-vehicles">
+                    <div class="icon">🚗</div>
+                    <span>VEHICLES</span>
+                </button>
+                <button class="nav-btn" id="nav-btn-upgrades">
+                    <div class="icon">🔧</div>
+                    <span>UPGRADES</span>
+                </button>
+                <button class="nav-btn" id="nav-btn-stages">
+                    <div class="icon">🗺️</div>
+                    <span>STAGES</span>
+                </button>
+                <button class="nav-btn" id="nav-btn-shop">
+                    <div class="icon">🎁</div>
+                    <span>SHOP</span>
+                </button>
+                <button class="start-race-btn" id="btn-start-race">
+                    <span>▶</span>
+                    <span>START!</span>
+                </button>
             </div>
         </div>
 
-        <!-- Touch Pedals -->
-        <div id="controls">
-            <div class="pedal-btn" id="btn-brake">
-                <span>BRAKE</span>
-                <small>◄ REVERSE</small>
-            </div>
-            <div class="pedal-btn" id="btn-gas">
-                <span>GAS</span>
-                <small>ACCEL ►</small>
-            </div>
-        </div>
+        <!-- 2. GAMEPLAY RACE SCREEN (Matches Android GameScreen) -->
+        <div id="race-screen">
+            <canvas id="game-canvas"></canvas>
 
-        <!-- Garage / Start Modal -->
-        <div class="overlay" id="menu-overlay">
-            <div class="modal-box">
-                <h1 class="modal-title">HILL CLIMB RACING</h1>
-                <p class="modal-desc">2D Physics Side-scrolling Endless Driving Game</p>
-
-                <div class="stat-badge" id="bank-coins">Total Bank: 🪙 500</div>
-
-                <div style="text-align: left; font-size: 12px; color: #94a3b8; font-weight: bold; margin-top: 10px;">SELECT VEHICLE:</div>
-                <div class="grid-options" id="vehicle-grid">
-                    <div class="option-card selected" data-veh="Jeep">Classic Jeep 🚙</div>
-                    <div class="option-card" data-veh="Bike">Motocross Bike 🏍️</div>
-                    <div class="option-card" data-veh="Monster Truck">Monster Truck 🛻</div>
-                    <div class="option-card" data-veh="Hippie Van">Hippie Van 🚐</div>
-                    <div class="option-card" data-veh="One-wheeler">One-wheeler 🛞</div>
-                    <div class="option-card" data-veh="Rally Car">Rally Car 🏎️</div>
-                    <div class="option-card" data-veh="Tank">Army Tank 🛡️</div>
-                    <div class="option-card" data-veh="Supercar">Supercar ⚡</div>
-                </div>
-
-                <div style="text-align: left; font-size: 12px; color: #94a3b8; font-weight: bold; margin-top: 10px;">SELECT STAGE:</div>
-                <div class="grid-options" id="stage-grid">
-                    <div class="option-card selected" data-stage="Countryside">Countryside 🌲</div>
-                    <div class="option-card" data-stage="Desert">Desert Dunes 🏜️</div>
-                    <div class="option-card" data-stage="Arctic">Arctic Snow ❄️</div>
-                    <div class="option-card" data-stage="Moon">Moon Space 🪐</div>
-                    <div class="option-card" data-stage="Cave">Cave Cavern 🔮</div>
-                    <div class="option-card" data-stage="Highway">Highway Bridge 🌉</div>
-                </div>
-
-                <button class="btn-primary" id="btn-start" style="width: 100%; margin-top: 14px; font-size: 18px; padding: 14px;">START RACE!</button>
-                <p style="font-size: 11px; color: #64748b; margin-top: 10px;">Controls: On-screen Pedals or [W/D, Up/Right Arrow] = Gas, [S/A, Down/Left Arrow] = Brake</p>
-            </div>
-        </div>
-
-        <!-- Game Over Modal -->
-        <div class="overlay" id="gameover-overlay" style="display: none;">
-            <div class="modal-box" style="border-color: #ef4444;">
-                <h1 class="modal-title" id="go-title" style="color: #ef4444;">DRIVER DOWN!</h1>
-                <p class="modal-desc" id="go-desc">Vehicle flipped on rough terrain</p>
-                <div class="hud-card" style="margin: 16px auto; justify-content: space-around; width: 100%;">
+            <!-- Heads Up Display -->
+            <div class="race-hud">
+                <div class="hud-pill">
+                    <span style="font-size: 18px;">🚩</span>
                     <div>
-                        <div class="hud-label">Distance</div>
-                        <div class="hud-val" id="go-dist">0m</div>
-                    </div>
-                    <div>
-                        <div class="hud-label">Coins Earned</div>
-                        <div class="hud-val" id="go-coins">+0</div>
+                        <div class="hud-meta-label" id="hud-stage-name">COUNTRYSIDE</div>
+                        <div class="hud-meta-val" id="hud-dist-val">0m</div>
                     </div>
                 </div>
-                <button class="btn-primary" id="btn-retry" style="width: 100%; background: #ef4444;">TRY AGAIN</button>
-                <button class="btn-secondary" id="btn-garage" style="width: 100%;">GARAGE & UPGRADES</button>
+
+                <div class="hud-pill fuel" id="hud-fuel-pill">
+                    <span style="font-size: 18px;">⛽</span>
+                    <div style="flex: 1;">
+                        <div class="hud-meta-label" style="color: #10b981;">FUEL TANK</div>
+                        <div class="fuel-bar-wrap">
+                            <div class="fuel-bar-fill" id="hud-fuel-fill"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 8px; align-items: center; pointer-events: auto;">
+                    <div class="hud-pill">
+                        <span style="font-size: 16px;">🪙</span>
+                        <div class="hud-meta-val" id="hud-coins-val">0</div>
+                    </div>
+                    <button class="icon-btn" id="btn-pause-race">⏸️</button>
+                </div>
+            </div>
+
+            <!-- Bottom Cockpit Controls -->
+            <div class="bottom-cockpit">
+                <!-- BRAKE Pedal -->
+                <div class="pedal" id="pedal-brake">
+                    <div class="pedal-name">BRAKE</div>
+                    <div class="pedal-sub">◄ REVERSE</div>
+                </div>
+
+                <!-- Analog Gauges -->
+                <div class="gauges-center">
+                    <div class="dial">
+                        <div class="dial-label">RPM</div>
+                        <div class="dial-val" id="gauge-rpm">950</div>
+                    </div>
+                    <div class="dial">
+                        <div class="dial-label">KM/H</div>
+                        <div class="dial-val" id="gauge-speed">0</div>
+                    </div>
+                </div>
+
+                <!-- GAS Pedal -->
+                <div class="pedal" id="pedal-gas">
+                    <div class="pedal-name">GAS</div>
+                    <div class="pedal-sub">ACCEL ►</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. MODALS (Vehicles, Upgrades, Stages, Shop, Game Over, Pause) -->
+        <div class="modal-overlay" id="modal-container" style="display: none;">
+            <div class="modal-dialog" id="modal-content">
+                <!-- Injected dynamically by JS -->
             </div>
         </div>
     </div>
 
     <script>
-        // --- GAME LOGIC & 2D PHYSICS ENGINE ---
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+        /* =====================================================================
+           SOUND SYNTHESIZER (Web Audio API)
+        ===================================================================== */
+        class WebSoundManager {
+            constructor() {
+                this.ctx = null;
+                this.muted = localStorage.getItem('hcr_muted') === 'true';
+            }
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+            toggleMute() {
+                this.muted = !this.muted;
+                localStorage.setItem('hcr_muted', this.muted);
+                return this.muted;
+            }
+            playTone(freq, type, duration, gainVal = 0.15) {
+                if (this.muted) return;
+                this.init();
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch (_) {}
+            }
+            coin() {
+                this.playTone(987, 'sine', 0.15, 0.2);
+                setTimeout(() => this.playTone(1318, 'sine', 0.2, 0.2), 60);
+            }
+            fuel() {
+                this.playTone(440, 'triangle', 0.15, 0.2);
+                setTimeout(() => this.playTone(880, 'triangle', 0.25, 0.2), 80);
+            }
+            flip() {
+                this.playTone(523, 'sine', 0.12, 0.25);
+                setTimeout(() => this.playTone(659, 'sine', 0.12, 0.25), 100);
+                setTimeout(() => this.playTone(784, 'sine', 0.25, 0.3), 200);
+            }
+            crash() {
+                this.playTone(110, 'sawtooth', 0.5, 0.35);
+            }
         }
-        window.addEventListener('resize', resizeCanvas);
-        resizeCanvas();
+        const sounds = new WebSoundManager();
+
+        /* =====================================================================
+           DATA MODELS & VEHICLE DEFINITIONS (Matching Android GameModels.kt)
+        ===================================================================== */
+        const VEHICLES = {
+            "JEEP": {
+                name: "JEEP", title: "Classic Red Jeep",
+                desc: "Free starter. Reliable 4x4 with balanced climbing stability.",
+                color: "#d32f2f", cost: 0,
+                mass: 120, wb: 68, r: 18, susp: 24, torque: 1.0, grip: 1.0, isOne: false
+            },
+            "BIKE": {
+                name: "BIKE", title: "Motocross Dirt Bike",
+                desc: "Lightweight two-wheeler. Extreme airtime, frontflips & backflips.",
+                color: "#f57c00", cost: 500,
+                mass: 65, wb: 56, r: 16, susp: 26, torque: 1.25, grip: 0.95, isOne: false
+            },
+            "MONSTER_TRUCK": {
+                name: "MONSTER_TRUCK", title: "Heavy Monster Truck",
+                desc: "Massive bouncy tires. Easily smashes bumps, rocks, and obstacles.",
+                color: "#1976d2", cost: 1200,
+                mass: 190, wb: 84, r: 28, susp: 34, torque: 1.45, grip: 1.25, isOne: false
+            },
+            "HIPPIE_VAN": {
+                name: "HIPPIE_VAN", title: "Hippie Van",
+                desc: "Iconic flower-power bus with bouncy shocks and high roof clearance.",
+                color: "#8e24aa", cost: 2500,
+                mass: 145, wb: 76, r: 19, susp: 26, torque: 1.3, grip: 1.1, isOne: false
+            },
+            "ONE_WHEELER": {
+                name: "ONE_WHEELER", title: "One-wheeler",
+                desc: "Unicycle balance master! Extreme stunt bonus and agile flipping.",
+                color: "#e91e63", cost: 4000,
+                mass: 55, wb: 0, r: 22, susp: 26, torque: 1.5, grip: 1.3, isOne: true
+            },
+            "RALLY_CAR": {
+                name: "RALLY_CAR", title: "Turbo Rally Car",
+                desc: "Aerodynamic rally machine with low center of gravity and fast acceleration.",
+                color: "#00acc1", cost: 6500,
+                mass: 95, wb: 68, r: 17, susp: 20, torque: 1.7, grip: 1.35, isOne: false
+            },
+            "TANK": {
+                name: "TANK", title: "Heavy Army Tank",
+                desc: "Armored powerhouse with continuous tracks. Climbs any steep mountain.",
+                color: "#388e3c", cost: 9000,
+                mass: 260, wb: 92, r: 20, susp: 18, torque: 2.0, grip: 1.55, isOne: false
+            },
+            "SUPERCAR": {
+                name: "SUPERCAR", title: "Luxury Supercar",
+                desc: "Twin-turbo hypercar. Extreme top speed and active downforce.",
+                color: "#ffd600", cost: 15000,
+                mass: 105, wb: 72, r: 18, susp: 19, torque: 2.2, grip: 1.45, isOne: false
+            }
+        };
 
         const STAGES = {
-            "Countryside": { skyTop: "#4fc3f7", skyBottom: "#e1f5fe", surface: "#7cb342", subsurface: "#5d4037", gravity: 9.8, friction: 1.0 },
-            "Desert": { skyTop: "#29b6f6", skyBottom: "#fff3e0", surface: "#fbc02d", subsurface: "#e65100", gravity: 9.8, friction: 0.88 },
-            "Arctic": { skyTop: "#81d4fa", skyBottom: "#e0f7fa", surface: "#e0f2f1", subsurface: "#37474f", gravity: 9.8, friction: 0.65 },
-            "Moon": { skyTop: "#0d1b2a", skyBottom: "#1b263b", surface: "#b0bec5", subsurface: "#263238", gravity: 3.6, friction: 0.95 },
-            "Cave": { skyTop: "#1a1a24", skyBottom: "#2d2235", surface: "#7e57c2", subsurface: "#21172b", gravity: 9.8, friction: 0.95 },
-            "Highway": { skyTop: "#37474f", skyBottom: "#78909c", surface: "#263238", subsurface: "#1e293b", gravity: 9.8, friction: 1.25 }
+            "COUNTRYSIDE": {
+                name: "COUNTRYSIDE", title: "Countryside",
+                desc: "Rolling lush green meadows, trees, and bridges. Free starter track.",
+                cost: 0, skyTop: "#4fc3f7", skyBottom: "#e1f5fe",
+                surface: "#7cb342", subsurface: "#5d4037",
+                gravity: 9.8, friction: 1.0
+            },
+            "DESERT": {
+                name: "DESERT", title: "Desert Dunes",
+                desc: "Endless undulating sand dunes, pyramids, and scorching sun.",
+                cost: 600, skyTop: "#29b6f6", skyBottom: "#fff3e0",
+                surface: "#fbc02d", subsurface: "#e65100",
+                gravity: 9.8, friction: 0.88
+            },
+            "ARCTIC": {
+                name: "ARCTIC", title: "Arctic Snow",
+                desc: "Slick frozen ice glaciers and snowy peaks with reduced tire traction.",
+                cost: 1500, skyTop: "#81d4fa", skyBottom: "#e0f7fa",
+                surface: "#e0f2f1", subsurface: "#37474f",
+                gravity: 9.8, friction: 0.65
+            },
+            "MOON": {
+                name: "MOON", title: "Moon Space",
+                desc: "Low gravity craters (3.6 m/s²). Skyrocket into the stars with giant jumps!",
+                cost: 3000, skyTop: "#0d1b2a", skyBottom: "#1b263b",
+                surface: "#b0bec5", subsurface: "#263238",
+                gravity: 3.6, friction: 0.95
+            },
+            "CAVE": {
+                name: "CAVE", title: "Cave Cavern",
+                desc: "Dark underground rocky caverns with bumpy terrain and glowing crystals.",
+                cost: 5000, skyTop: "#1a1a24", skyBottom: "#2d2235",
+                surface: "#7e57c2", subsurface: "#21172b",
+                gravity: 9.8, friction: 0.95
+            },
+            "HIGHWAY": {
+                name: "HIGHWAY", title: "Highway Bridge",
+                desc: "Long smooth asphalt highway with flyovers, streetlights, and speed ramps.",
+                cost: 8000, skyTop: "#37474f", skyBottom: "#78909c",
+                surface: "#263238", subsurface: "#1e293b",
+                gravity: 9.8, friction: 1.25
+            }
         };
 
-        const VEHICLES = {
-            "Jeep": { mass: 120, wb: 68, r: 18, susp: 24, torque: 1.0, color: "#d32f2f" },
-            "Bike": { mass: 65, wb: 56, r: 16, susp: 26, torque: 1.25, color: "#f57c00" },
-            "Monster Truck": { mass: 190, wb: 84, r: 28, susp: 34, torque: 1.45, color: "#1976d2" },
-            "Hippie Van": { mass: 145, wb: 76, r: 19, susp: 26, torque: 1.3, color: "#8e24aa" },
-            "One-wheeler": { mass: 55, wb: 0, r: 22, susp: 26, torque: 1.5, color: "#e91e63", isOne: true },
-            "Rally Car": { mass: 95, wb: 68, r: 17, susp: 20, torque: 1.7, color: "#00acc1" },
-            "Tank": { mass: 260, wb: 92, r: 20, susp: 18, torque: 2.0, color: "#388e3c" },
-            "Supercar": { mass: 105, wb: 72, r: 18, susp: 19, torque: 2.2, color: "#ffd600" }
-        };
-
-        let selectedVehicle = "Jeep";
-        let selectedStage = "Countryside";
-        let totalCoins = 500;
-        let gameState = "MENU"; // MENU, PLAYING, GAMEOVER
-
-        let gasPressed = false;
-        let brakePressed = false;
-
-        // Physics State
-        let baseGroundY = 480;
-        let flatRunway = 1500; // 50m flat runway
-        let car = {
-            x: 180, y: 438, angle: 0,
-            vx: 0, vy: 0, angularVel: 0,
-            rearX: 146, rearY: 462, frontX: 214, frontY: 462,
-            fuel: 100, maxFuel: 100,
-            distance: 0, runCoins: 0,
-            grace: 3.0
-        };
-
-        let coins = [];
-        let fuelCans = [];
-        let particles = [];
-        let floatingTexts = [];
-        let frontierX = 0;
-
-        function getTerrainElevation(x) {
-            if (x <= flatRunway) return baseGroundY;
-            const distPast = x - flatRunway;
-            const blend = Math.min(1.0, distPast / 400.0);
-            const w1 = Math.sin(x * 0.0028) * 80;
-            const w2 = Math.sin(x * 0.0075) * 38;
-            const w3 = Math.sin(x * 0.017) * 16;
-            const w4 = Math.sin(x * 0.0006) * 120;
-            return baseGroundY + (w1 + w2 + w3 + w4) * blend;
-        }
-
-        function getTerrainSlope(x) {
-            const dx = 3.0;
-            return Math.atan2(getTerrainElevation(x + dx) - getTerrainElevation(x - dx), dx * 2.0);
-        }
-
-        function expandWorld(targetX) {
-            while (frontierX < targetX) {
-                const cx = frontierX;
-                if (cx > 800 && Math.random() < 0.025) {
-                    fuelCans.push({ id: Math.random(), x: cx, y: getTerrainElevation(cx) - 24, collected: false });
-                    frontierX += 160;
-                    continue;
+        /* =====================================================================
+           PERSISTENCE REPOSITORY (Matching Android GameRepository)
+        ===================================================================== */
+        class GameStorage {
+            constructor() {
+                this.coins = parseInt(localStorage.getItem('hcr_total_coins') || '450', 10);
+                this.selectedVehicle = localStorage.getItem('hcr_selected_vehicle') || 'JEEP';
+                this.unlockedVehicles = new Set(JSON.parse(localStorage.getItem('hcr_unlocked_veh') || '["JEEP"]'));
+                this.selectedStage = localStorage.getItem('hcr_selected_stage') || 'COUNTRYSIDE';
+                this.unlockedStages = new Set(JSON.parse(localStorage.getItem('hcr_unlocked_stg') || '["COUNTRYSIDE"]'));
+            }
+            save() {
+                localStorage.setItem('hcr_total_coins', this.coins);
+                localStorage.setItem('hcr_selected_vehicle', this.selectedVehicle);
+                localStorage.setItem('hcr_unlocked_veh', JSON.stringify([...this.unlockedVehicles]));
+                localStorage.setItem('hcr_selected_stage', this.selectedStage);
+                localStorage.setItem('hcr_unlocked_stg', JSON.stringify([...this.unlockedStages]));
+            }
+            getUpgrades(vehName) {
+                const data = localStorage.getItem(`hcr_upg_${vehName}`);
+                return data ? JSON.parse(data) : { engine: 1, suspension: 1, tires: 1, fuel: 1 };
+            }
+            setUpgrades(vehName, upg) {
+                localStorage.setItem(`hcr_upg_${vehName}`, JSON.stringify(upg));
+            }
+            getBestDistance(stgName) {
+                return parseInt(localStorage.getItem(`hcr_best_${stgName}`) || '0', 10);
+            }
+            setBestDistance(stgName, dist) {
+                const current = this.getBestDistance(stgName);
+                if (dist > current) {
+                    localStorage.setItem(`hcr_best_${stgName}`, dist);
+                    return true;
                 }
-                const gy = getTerrainElevation(cx);
-                const val = [5, 10, 50, 100, 500][Math.floor(Math.random() * 5)];
-                coins.push({ id: Math.random(), x: cx, y: gy - 28, val: val, collected: false });
-                frontierX += 45;
+                return false;
             }
         }
+        const storage = new GameStorage();
 
-        function initGame() {
-            const spec = VEHICLES[selectedVehicle];
-            const halfBase = spec.isOne ? 0 : spec.wb * 0.5;
+        /* =====================================================================
+           2D PHYSICS ENGINE (Matching Android PhysicsEngine.kt)
+        ===================================================================== */
+        class PhysicsEngine {
+            constructor(vehKey, stageKey) {
+                this.veh = VEHICLES[vehKey];
+                this.stg = STAGES[stageKey];
+                this.upgrades = storage.getUpgrades(vehKey);
 
-            car.x = 180;
-            car.y = baseGroundY - spec.r - spec.susp;
-            car.angle = 0;
-            car.vx = 0;
-            car.vy = 0;
-            car.angularVel = 0;
-            car.rearX = car.x - halfBase;
-            car.rearY = baseGroundY - spec.r;
-            car.frontX = car.x + halfBase;
-            car.frontY = baseGroundY - spec.r;
-            car.fuel = 100;
-            car.maxFuel = 100;
-            car.distance = 0;
-            car.runCoins = 0;
-            car.grace = 3.0;
+                this.baseGroundY = 480;
+                this.flatRunway = 1500; // 50m completely flat
+                this.spawnX = 180;
 
-            coins = [];
-            fuelCans = [];
-            particles = [];
-            floatingTexts = [];
-            frontierX = 0;
-            expandWorld(3000);
+                this.halfBase = this.veh.isOne ? 0 : this.veh.wb * 0.5;
 
-            document.getElementById('stage-badge').innerText = selectedStage;
-            document.getElementById('dist-val').innerText = '0m';
-            document.getElementById('coins-val').innerText = '🪙 0';
-        }
+                // Rest position at equilibrium
+                this.chassisX = this.spawnX;
+                this.chassisY = this.baseGroundY - this.veh.r - this.veh.susp;
+                this.chassisAngle = 0;
+                this.chassisVx = 0;
+                this.chassisVy = 0;
+                this.chassisAngularVel = 0;
 
-        function updatePhysics(dt) {
-            const spec = VEHICLES[selectedVehicle];
-            const stg = STAGES[selectedStage];
-            const grav = stg.gravity * 65;
-            const halfBase = spec.isOne ? 0 : spec.wb * 0.5;
+                this.rearX = this.chassisX - this.halfBase;
+                this.rearY = this.baseGroundY - this.veh.r;
+                this.frontX = this.chassisX + this.halfBase;
+                this.frontY = this.baseGroundY - this.veh.r;
+                this.wheelSpin = 0;
 
-            if (car.grace > 0) car.grace = Math.max(0, car.grace - dt);
+                this.spawnGraceTimer = 3.0;
 
-            expandWorld(car.x + 2500);
+                // Engine & Fuel
+                this.maxFuel = 100 + (this.upgrades.fuel - 1) * 25;
+                this.currentFuel = this.maxFuel;
+                this.rpm = 950;
+                this.speedKmh = 0;
+                this.distanceMeters = 0;
+                this.coinsScore = 0;
 
-            // Fuel
-            if (car.fuel > 0) {
-                car.fuel = Math.max(0, car.fuel - 0.02 * dt * (gasPressed ? 5.5 : 1.0));
-            }
-            const hasFuel = car.fuel > 0.001;
+                this.enginePower = this.veh.torque * (1.0 + (this.upgrades.engine - 1) * 0.20);
+                this.tireGrip = this.veh.grip * (1.0 + (this.upgrades.tires - 1) * 0.16) * this.stg.friction;
 
-            // Wheels collision
-            const rGy = getTerrainElevation(car.rearX);
-            const rearOnGround = (car.rearY + spec.r) >= rGy;
-            if (rearOnGround) car.rearY = rGy - spec.r;
+                this.coins = [];
+                this.fuelCans = [];
+                this.particles = [];
+                this.floatingTexts = [];
+                this.frontierX = 0;
 
-            let frontOnGround = false;
-            if (!spec.isOne) {
-                const fGy = getTerrainElevation(car.frontX);
-                frontOnGround = (car.frontY + spec.r) >= fGy;
-                if (frontOnGround) car.frontY = fGy - spec.r;
-            } else {
-                car.frontX = car.x;
-                car.frontY = car.rearY;
+                this.expandWorld(3500);
             }
 
-            const onGround = rearOnGround || frontOnGround;
+            getElevation(x) {
+                if (x <= this.flatRunway) return this.baseGroundY;
+                const distPast = x - this.flatRunway;
+                const blend = Math.min(1.0, distPast / 400.0);
+                const endlessDiff = 1.0 + Math.min(0.65, x / 30000.0);
 
-            // Drive forces
-            if (onGround) {
-                const slope = getTerrainSlope(car.x);
-                if (hasFuel && gasPressed) {
-                    const driveAcc = 420 * spec.torque * stg.friction;
-                    car.vx += driveAcc * dt * Math.cos(slope);
-                    car.vy += driveAcc * dt * Math.sin(slope);
-                } else if (brakePressed) {
-                    car.vx *= (1.0 - dt * 5.5);
-                    if (car.vx < 10) {
-                        const revAcc = 180 * spec.torque * stg.friction;
-                        car.vx -= revAcc * dt * Math.cos(slope);
-                        car.vy -= revAcc * dt * Math.sin(slope);
+                const w1 = Math.sin(x * 0.0028) * (80.0 * endlessDiff);
+                const w2 = Math.sin(x * 0.0075) * (38.0 * endlessDiff);
+                const w3 = Math.sin(x * 0.017) * (16.0 * endlessDiff);
+                const w4 = Math.sin(x * 0.0006) * (120.0 * endlessDiff);
+                return this.baseGroundY + (w1 + w2 + w3 + w4) * blend;
+            }
+
+            getSlope(x) {
+                const dx = 3.0;
+                return Math.atan2(this.getElevation(x + dx) - this.getElevation(x - dx), dx * 2.0);
+            }
+
+            expandWorld(targetX) {
+                while (this.frontierX < targetX) {
+                    const cx = this.frontierX;
+                    if (cx > 800 && Math.random() < 0.025) {
+                        this.fuelCans.push({ id: Math.random(), x: cx, y: this.getElevation(cx) - 24, collected: false });
+                        this.frontierX += 160;
+                        continue;
+                    }
+                    const gy = this.getElevation(cx);
+                    const val = [5, 10, 50, 100, 500][Math.floor(Math.random() * 5)];
+                    this.coins.push({ id: Math.random(), x: cx, y: gy - 28, val: val, collected: false });
+                    this.frontierX += 45;
+                }
+                const pruneX = this.chassisX - 1200;
+                this.coins = this.coins.filter(c => !c.collected && c.x >= pruneX);
+                this.fuelCans = this.fuelCans.filter(f => !f.collected && f.x >= pruneX);
+            }
+
+            update(dt, gas, brake) {
+                const grav = this.stg.gravity * 65.0;
+                if (this.spawnGraceTimer > 0) {
+                    this.spawnGraceTimer = Math.max(0, this.spawnGraceTimer - dt);
+                }
+
+                this.expandWorld(this.chassisX + 2800);
+
+                // Fuel consumption
+                if (this.currentFuel > 0) {
+                    this.currentFuel = Math.max(0, this.currentFuel - (0.019 / (1 + (this.upgrades.fuel - 1) * 0.16)) * dt * (gas ? 5.5 : 1.0));
+                }
+                const hasFuel = this.currentFuel > 0.001;
+
+                // Engine RPM
+                const targetRpm = (gas && hasFuel) ? 7200 : (brake ? 3200 : 950);
+                this.rpm += (targetRpm - this.rpm) * Math.min(1.0, dt * 10);
+
+                // Ground contact checks
+                const rGy = this.getElevation(this.rearX);
+                const rearOnGround = (this.rearY + this.veh.r) >= rGy;
+                if (rearOnGround) this.rearY = rGy - this.veh.r;
+
+                let frontOnGround = false;
+                if (!this.veh.isOne) {
+                    const fGy = this.getElevation(this.frontX);
+                    frontOnGround = (this.frontY + this.veh.r) >= fGy;
+                    if (frontOnGround) this.frontY = fGy - this.veh.r;
+                } else {
+                    this.frontX = this.chassisX;
+                    this.frontY = this.rearY;
+                }
+
+                const onGround = rearOnGround || frontOnGround;
+
+                // Driving & braking forces
+                if (onGround) {
+                    const slope = this.getSlope(this.chassisX);
+                    if (hasFuel && gas) {
+                        const driveAcc = 420.0 * this.enginePower * this.tireGrip;
+                        this.chassisVx += driveAcc * dt * Math.cos(slope);
+                        this.chassisVy += driveAcc * dt * Math.sin(slope);
+                        this.wheelSpin += (this.chassisVx / this.veh.r) * dt * 2.5;
+                    } else if (brake) {
+                        this.chassisVx *= (1.0 - dt * 5.5);
+                        if (this.chassisVx < 10) {
+                            const revAcc = 180.0 * this.enginePower * this.tireGrip;
+                            this.chassisVx -= revAcc * dt * Math.cos(slope);
+                            this.chassisVy -= revAcc * dt * Math.sin(slope);
+                        }
+                    } else {
+                        this.chassisVx *= (1.0 - dt * 0.35);
+                    }
+                    this.chassisVy += grav * dt * 0.35;
+                } else {
+                    this.chassisVy += grav * dt;
+                }
+
+                // Suspension spring
+                const avgWheelY = this.veh.isOne ? this.rearY : (this.rearY + this.frontY) * 0.5;
+                const targetChassisY = avgWheelY - this.veh.susp;
+
+                if (onGround) {
+                    const suspDeltaY = targetChassisY - this.chassisY;
+                    const suspForceY = suspDeltaY * 220.0 - this.chassisVy * 24.0;
+                    this.chassisVy += (suspForceY / this.veh.mass) * dt;
+
+                    // Ground pitch alignment
+                    const targetAngle = (!this.veh.isOne && rearOnGround && frontOnGround)
+                        ? Math.atan2(this.frontY - this.rearY, this.frontX - this.rearX)
+                        : this.getSlope(this.chassisX);
+
+                    const diff = this.chassisAngle - targetAngle;
+                    this.chassisAngularVel -= diff * 14.0 * dt;
+                    this.chassisAngularVel *= (1.0 - dt * 6.5);
+
+                    if (gas && hasFuel && !this.veh.isOne && this.chassisAngle > -0.12) {
+                        this.chassisAngularVel -= 0.15 * dt * this.enginePower;
                     }
                 } else {
-                    car.vx *= (1.0 - dt * 0.35);
+                    // Air pitch stunts
+                    if (gas) this.chassisAngularVel -= 4.2 * dt;  // backflip
+                    if (brake) this.chassisAngularVel += 4.2 * dt; // frontflip
+                    this.chassisAngularVel *= (1.0 - dt * 0.8);
                 }
-                car.vy += grav * dt * 0.35;
-            } else {
-                car.vy += grav * dt;
-            }
 
-            // Suspension
-            const avgWheelY = spec.isOne ? car.rearY : (car.rearY + car.frontY) * 0.5;
-            const targetChassisY = avgWheelY - spec.susp;
-            if (onGround) {
-                const suspDeltaY = targetChassisY - car.y;
-                const suspForceY = suspDeltaY * 220 - car.vy * 24;
-                car.vy += (suspForceY / spec.mass) * dt;
+                this.chassisAngularVel = Math.max(-8.5, Math.min(8.5, this.chassisAngularVel));
 
-                const targetAngle = (!spec.isOne && rearOnGround && frontOnGround)
-                    ? Math.atan2(car.frontY - car.rearY, car.frontX - car.rearX)
-                    : getTerrainSlope(car.x);
+                // Integrate positions
+                this.chassisX += this.chassisVx * dt;
+                this.chassisY += this.chassisVy * dt;
+                this.chassisAngle += this.chassisAngularVel * dt;
 
-                const diff = car.angle - targetAngle;
-                car.angularVel -= diff * 14.0 * dt;
-                car.angularVel *= (1.0 - dt * 6.5);
+                const cosA = Math.cos(this.chassisAngle);
+                this.rearX = this.chassisX - cosA * this.halfBase;
+                if (!this.veh.isOne) this.frontX = this.chassisX + cosA * this.halfBase;
 
-                if (gasPressed && hasFuel && !spec.isOne && car.angle > -0.12) {
-                    car.angularVel -= 0.15 * dt * spec.torque;
-                }
-            } else {
-                // In air
-                if (gasPressed) car.angularVel -= 4.2 * dt;
-                if (brakePressed) car.angularVel += 4.2 * dt;
-                car.angularVel *= (1.0 - dt * 0.8);
-            }
+                // Speed & Distance
+                const speedMag = Math.hypot(this.chassisVx, this.chassisVy);
+                this.speedKmh = speedMag * 0.16;
+                this.distanceMeters = Math.max(0, Math.floor((this.chassisX - this.spawnX) / 26.0));
 
-            car.angularVel = Math.max(-8.5, Math.min(8.5, car.angularVel));
-
-            car.x += car.vx * dt;
-            car.y += car.vy * dt;
-            car.angle += car.angularVel * dt;
-
-            const cosA = Math.cos(car.angle);
-            car.rearX = car.x - cosA * halfBase;
-            if (!spec.isOne) car.frontX = car.x + cosA * halfBase;
-
-            // Distance
-            car.distance = Math.max(0, Math.floor((car.x - 180) / 26));
-
-            // Pickups
-            for (let c of coins) {
-                if (!c.collected && Math.hypot(car.x - c.x, car.y - c.y) < 48) {
-                    c.collected = true;
-                    car.runCoins += c.val;
-                    totalCoins += c.val;
-                    floatingTexts.push({ text: `+${c.val}`, x: c.x, y: c.y - 20, life: 1.0 });
-                }
-            }
-            for (let f of fuelCans) {
-                if (!f.collected && Math.hypot(car.x - f.x, car.y - f.y) < 50) {
-                    f.collected = true;
-                    car.fuel = car.maxFuel;
-                    floatingTexts.push({ text: `FUEL +100%!`, x: f.x, y: f.y - 25, life: 1.2 });
-                }
-            }
-
-            // Crash check: Only if upside-down and past 35m
-            if (car.grace <= 0 && car.distance >= 35) {
-                const normAngle = ((car.angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
-                const isUpsideDown = normAngle > 2.2 && normAngle < 4.1;
-                if (isUpsideDown) {
-                    const headX = car.x + Math.sin(car.angle) * 24;
-                    const headY = car.y - Math.cos(car.angle) * 24;
-                    if (headY >= getTerrainElevation(headX) - 2) {
-                        triggerGameOver("DRIVER DOWN!", "Vehicle flipped on rough terrain");
+                // Pickups
+                for (let c of this.coins) {
+                    if (!c.collected && Math.hypot(this.chassisX - c.x, this.chassisY - c.y) < 48) {
+                        c.collected = true;
+                        this.coinsScore += c.val;
+                        storage.coins += c.val;
+                        sounds.coin();
+                        this.floatingTexts.push({ text: `+${c.val}`, x: c.x, y: c.y - 20, life: 1.0, color: c.val >= 500 ? "#ec4899" : "#ffd700" });
                     }
                 }
-            }
 
-            // Out of fuel check
-            if (car.fuel <= 0.001 && Math.hypot(car.vx, car.vy) < 2) {
-                triggerGameOver("OUT OF FUEL!", "Fuel tank completely drained");
+                for (let f of this.fuelCans) {
+                    if (!f.collected && Math.hypot(this.chassisX - f.x, this.chassisY - f.y) < 50) {
+                        f.collected = true;
+                        this.currentFuel = this.maxFuel;
+                        sounds.fuel();
+                        this.floatingTexts.push({ text: `FUEL +100%!`, x: f.x, y: f.y - 25, life: 1.2, color: "#ff3d00" });
+                    }
+                }
+
+                // Crash detection: ONLY when inverted after 35m
+                if (this.spawnGraceTimer <= 0 && this.distanceMeters >= 35) {
+                    const normAngle = ((this.chassisAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+                    const isUpsideDown = normAngle > 2.2 && normAngle < 4.1;
+
+                    if (isUpsideDown) {
+                        const headX = this.chassisX + Math.sin(this.chassisAngle) * 24.0;
+                        const headY = this.chassisY - Math.cos(this.chassisAngle) * 24.0;
+                        const groundAtHead = this.getElevation(headX);
+
+                        if (headY >= groundAtHead - 2.0 || (onGround && speedMag < 20)) {
+                            sounds.crash();
+                            return "FLIPPED";
+                        }
+                    }
+                }
+
+                // Out of fuel
+                if (this.currentFuel <= 0.001 && speedMag < 2.0) {
+                    return "FUEL";
+                }
+
+                return "PLAYING";
             }
         }
 
-        function triggerGameOver(title, desc) {
-            gameState = "GAMEOVER";
-            document.getElementById('go-title').innerText = title;
-            document.getElementById('go-desc').innerText = desc;
-            document.getElementById('go-dist').innerText = `${car.distance}m`;
-            document.getElementById('go-coins').innerText = `+${car.runCoins}`;
-            document.getElementById('gameover-overlay').style.display = 'flex';
+        /* =====================================================================
+           APP CONTROLLER & UI MANAGEMENT
+        ===================================================================== */
+        let activePhysics = null;
+        let isGameRunning = false;
+        let isGasPressed = false;
+        let isBrakePressed = false;
+
+        const garageCanvas = document.getElementById('showcase-canvas');
+        const garageCtx = garageCanvas.getContext('2d');
+        const gameCanvas = document.getElementById('game-canvas');
+        const gameCtx = gameCanvas.getContext('2d');
+
+        function resizeAll() {
+            garageCanvas.width = garageCanvas.clientWidth * window.devicePixelRatio;
+            garageCanvas.height = garageCanvas.clientHeight * window.devicePixelRatio;
+            gameCanvas.width = window.innerWidth * window.devicePixelRatio;
+            gameCanvas.height = window.innerHeight * window.devicePixelRatio;
+        }
+        window.addEventListener('resize', resizeAll);
+
+        // Sound toggle
+        const btnSoundToggle = document.getElementById('btn-sound-toggle');
+        btnSoundToggle.addEventListener('click', () => {
+            const isMuted = sounds.toggleMute();
+            btnSoundToggle.innerText = isMuted ? '🔇' : '🔊';
+        });
+
+        function updateGarageUI() {
+            const v = VEHICLES[storage.selectedVehicle];
+            const s = STAGES[storage.selectedStage];
+            const upg = storage.getUpgrades(v.name);
+            const bestDist = storage.getBestDistance(s.name);
+
+            document.getElementById('top-coins-badge').innerText = `🪙 ${storage.coins}`;
+            document.getElementById('top-stage-sub').innerText = `ENDLESS MODE • ${s.title.toUpperCase()}`;
+            document.getElementById('showcase-title').innerText = v.title;
+            document.getElementById('showcase-desc').innerText = v.desc;
+            document.getElementById('showcase-record').innerText = `BEST RECORD (${s.title.toUpperCase()}): ${bestDist}m`;
+
+            document.getElementById('stat-engine-lvl').innerText = `LVL ${upg.engine}/10`;
+            document.getElementById('stat-engine-fill').style.width = `${upg.engine * 10}%`;
+
+            document.getElementById('stat-susp-lvl').innerText = `LVL ${upg.suspension}/10`;
+            document.getElementById('stat-susp-fill').style.width = `${upg.suspension * 10}%`;
+
+            document.getElementById('stat-tires-lvl').innerText = `LVL ${upg.tires}/10`;
+            document.getElementById('stat-tires-fill').style.width = `${upg.tires * 10}%`;
+
+            document.getElementById('stat-fuel-lvl').innerText = `LVL ${upg.fuel}/10`;
+            document.getElementById('stat-fuel-fill').style.width = `${upg.fuel * 10}%`;
         }
 
-        function render() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const stg = STAGES[selectedStage];
-            const spec = VEHICLES[selectedVehicle];
+        // Draw vehicle on Showcase Canvas
+        function drawShowcaseVehicle(time) {
+            if (isGameRunning) return;
+            const w = garageCanvas.width;
+            const h = garageCanvas.height;
+            garageCtx.clearRect(0, 0, w, h);
 
-            // Sky
-            const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-            grad.addColorStop(0, stg.skyTop);
-            grad.addColorStop(1, stg.skyBottom);
-            ctx.fillStyle = grad;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            const v = VEHICLES[storage.selectedVehicle];
+            const scale = Math.min(w / 450, h / 280) * 1.5;
 
-            const camX = canvas.width * 0.32 - car.x;
-            const camY = canvas.height * 0.62 - car.y;
+            const cx = w * 0.5;
+            const cy = h * 0.62 + Math.sin(time * 0.003) * (4 * scale);
 
-            // Terrain
-            ctx.fillStyle = stg.subsurface;
+            // Ground spotlight platform
+            garageCtx.save();
+            garageCtx.fillStyle = "rgba(56, 189, 248, 0.12)";
+            garageCtx.beginPath();
+            garageCtx.ellipse(cx, cy + 42 * scale, 120 * scale, 24 * scale, 0, 0, Math.PI * 2);
+            garageCtx.fill();
+
+            garageCtx.strokeStyle = "rgba(56, 189, 248, 0.4)";
+            garageCtx.lineWidth = 2 * scale;
+            garageCtx.stroke();
+            garageCtx.restore();
+
+            drawVehicleBody(garageCtx, v, cx, cy, 0, scale);
+        }
+
+        function drawVehicleBody(ctx, v, cx, cy, angle, scale) {
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(angle);
+
+            const halfWb = (v.isOne ? 0 : v.wb * 0.5) * scale;
+            const r = v.r * scale;
+            const susp = v.susp * scale;
+
+            // Wheels & Shocks
+            ctx.strokeStyle = "#94a3b8";
+            ctx.lineWidth = 3 * scale;
+
             ctx.beginPath();
-            const startX = Math.floor(car.x - 600);
-            const endX = Math.floor(car.x + 800);
-            ctx.moveTo(startX + camX, canvas.height + 200);
-            for (let x = startX; x <= endX; x += 15) {
-                ctx.lineTo(x + camX, getTerrainElevation(x) + camY);
-            }
-            ctx.lineTo(endX + camX, canvas.height + 200);
-            ctx.closePath();
-            ctx.fill();
-
-            // Grass line
-            ctx.strokeStyle = stg.surface;
-            ctx.lineWidth = 8;
-            ctx.beginPath();
-            for (let x = startX; x <= endX; x += 15) {
-                if (x === startX) ctx.moveTo(x + camX, getTerrainElevation(x) + camY);
-                else ctx.lineTo(x + camX, getTerrainElevation(x) + camY);
-            }
+            ctx.moveTo(-halfWb * 0.5, 0);
+            ctx.lineTo(-halfWb, susp);
             ctx.stroke();
 
-            // Runway Line
-            if (startX <= flatRunway) {
-                ctx.strokeStyle = "#ffffff";
-                ctx.lineWidth = 4;
+            if (!v.isOne) {
                 ctx.beginPath();
-                ctx.moveTo(camX, baseGroundY + camY);
-                ctx.lineTo(flatRunway + camX, baseGroundY + camY);
+                ctx.moveTo(halfWb * 0.5, 0);
+                ctx.lineTo(halfWb, susp);
                 ctx.stroke();
             }
 
-            // Collectibles
-            for (let c of coins) {
-                if (!c.collected && c.x >= startX && c.x <= endX) {
-                    ctx.fillStyle = c.val >= 500 ? "#e91e63" : (c.val >= 100 ? "#ef4444" : "#ffd700");
-                    ctx.beginPath();
-                    ctx.arc(c.x + camX, c.y + camY, 13, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.fillStyle = "#000000";
-                    ctx.font = "bold 11px sans-serif";
-                    ctx.textAlign = "center";
-                    ctx.textBaseline = "middle";
-                    ctx.fillText(c.val, c.x + camX, c.y + camY);
-                }
-            }
-
-            for (let f of fuelCans) {
-                if (!f.collected && f.x >= startX && f.x <= endX) {
-                    ctx.fillStyle = "#ef4444";
-                    ctx.fillRect(f.x + camX - 12, f.y + camY - 16, 24, 32);
-                    ctx.fillStyle = "#ffffff";
-                    ctx.font = "bold 10px sans-serif";
-                    ctx.textAlign = "center";
-                    ctx.fillText("GAS", f.x + camX, f.y + camY);
-                }
-            }
-
-            // Suspension & Wheels
-            ctx.strokeStyle = "#94a3b8";
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(car.x + camX - 16, car.y + camY);
-            ctx.lineTo(car.rearX + camX, car.rearY + camY);
-            if (!spec.isOne) {
-                ctx.moveTo(car.x + camX + 16, car.y + camY);
-                ctx.lineTo(car.frontX + camX, car.frontY + camY);
-            }
-            ctx.stroke();
-
-            ctx.fillStyle = "#1e293b";
-            ctx.beginPath();
-            ctx.arc(car.rearX + camX, car.rearY + camY, spec.r, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = "#cbd5e1";
-            ctx.beginPath();
-            ctx.arc(car.rearX + camX, car.rearY + camY, spec.r * 0.5, 0, Math.PI * 2);
-            ctx.fill();
-
-            if (!spec.isOne) {
+            // Wheels
+            const drawWheel = (wx, wy) => {
                 ctx.fillStyle = "#1e293b";
                 ctx.beginPath();
-                ctx.arc(car.frontX + camX, car.frontY + camY, spec.r, 0, Math.PI * 2);
+                ctx.arc(wx, wy, r, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.fillStyle = "#cbd5e1";
                 ctx.beginPath();
-                ctx.arc(car.frontX + camX, car.frontY + camY, spec.r * 0.5, 0, Math.PI * 2);
+                ctx.arc(wx, wy, r * 0.55, 0, Math.PI * 2);
                 ctx.fill();
-            }
+                ctx.fillStyle = "#ef4444";
+                ctx.beginPath();
+                ctx.arc(wx, wy, r * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+            };
 
-            // Chassis
-            ctx.save();
-            ctx.translate(car.x + camX, car.y + camY);
-            ctx.rotate(car.angle);
+            drawWheel(-halfWb, susp);
+            if (!v.isOne) drawWheel(halfWb, susp);
 
-            ctx.fillStyle = spec.color;
-            ctx.fillRect(-34, -12, 68, 22);
+            // Vehicle Body
+            ctx.fillStyle = v.color;
+            ctx.beginPath();
+            ctx.roundRect(-38 * scale, -12 * scale, 76 * scale, 24 * scale, 6 * scale);
+            ctx.fill();
 
-            // Driver Head
+            // Cockpit & Driver Head
             ctx.fillStyle = "#fed7aa";
             ctx.beginPath();
-            ctx.arc(-6, -20, 8, 0, Math.PI * 2);
+            ctx.arc(-4 * scale, -22 * scale, 8 * scale, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillStyle = spec.color;
+            ctx.fillStyle = v.color;
             ctx.beginPath();
-            ctx.arc(-6, -24, 7, 0, Math.PI * 2);
+            ctx.arc(-4 * scale, -26 * scale, 7 * scale, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.restore();
-
-            // Floating Texts
-            for (let i = floatingTexts.length - 1; i >= 0; i--) {
-                const ft = floatingTexts[i];
-                ft.life -= 0.02;
-                ft.y -= 1;
-                ctx.fillStyle = `rgba(255, 215, 0, ${ft.life})`;
-                ctx.font = "bold 16px sans-serif";
-                ctx.fillText(ft.text, ft.x + camX, ft.y + camY);
-                if (ft.life <= 0) floatingTexts.splice(i, 1);
-            }
-
-            // Update DOM HUD
-            document.getElementById('dist-val').innerText = `${car.distance}m`;
-            document.getElementById('coins-val').innerText = `🪙 ${car.runCoins}`;
-            const fuelRatio = Math.max(0, Math.min(1, car.fuel / car.maxFuel));
-            const bar = document.getElementById('fuel-bar');
-            bar.style.width = `${fuelRatio * 100}%`;
-            bar.style.backgroundColor = fuelRatio < 0.25 ? "#ef4444" : "#10b981";
         }
 
-        let lastTime = performance.now();
-        function loop(now) {
-            const dt = Math.min(0.05, (now - lastTime) / 1000);
-            lastTime = now;
+        /* -------------------------------------------------------------
+           MODALS CONTROLLER
+        ------------------------------------------------------------- */
+        const modalContainer = document.getElementById('modal-container');
+        const modalContent = document.getElementById('modal-content');
 
-            if (gameState === "PLAYING") {
-                updatePhysics(dt);
-            }
-            render();
-            requestAnimationFrame(loop);
+        function openModal(title, html) {
+            modalContent.innerHTML = `
+                <div class="modal-header">
+                    <h3>${title}</h3>
+                    <button class="close-btn" id="modal-close-btn">✕</button>
+                </div>
+                <div class="modal-body">${html}</div>
+            `;
+            document.getElementById('modal-close-btn').addEventListener('click', closeModal);
+            modalContainer.style.display = 'flex';
         }
-        requestAnimationFrame(loop);
+        function closeModal() {
+            modalContainer.style.display = 'none';
+            updateGarageUI();
+        }
+        modalContainer.addEventListener('click', e => {
+            if (e.target === modalContainer) closeModal();
+        });
 
-        // --- INPUT & EVENT LISTENERS ---
-        window.addEventListener('keydown', e => {
-            if (e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'd' || e.key === 'w') gasPressed = true;
-            if (e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'a' || e.key === 's') brakePressed = true;
-            if (e.key === ' ' && gameState === "GAMEOVER") {
-                document.getElementById('gameover-overlay').style.display = 'none';
-                initGame();
-                gameState = "PLAYING";
+        // 1. VEHICLES MODAL
+        document.getElementById('nav-btn-vehicles').addEventListener('click', () => {
+            let html = '';
+            for (let k in VEHICLES) {
+                const v = VEHICLES[k];
+                const isUnlocked = storage.unlockedVehicles.has(k);
+                const isSelected = storage.selectedVehicle === k;
+
+                html += `
+                    <div class="card-row ${isSelected ? 'selected' : ''}" data-veh="${k}">
+                        <div class="card-info">
+                            <h4>${v.title}</h4>
+                            <p>${v.desc}</p>
+                        </div>
+                        <div>
+                            ${isSelected ? `<button class="card-btn selected-badge">DRIVING</button>` :
+                              isUnlocked ? `<button class="card-btn select" onclick="selectVeh('${k}')">SELECT</button>` :
+                              `<button class="card-btn unlock" onclick="unlockVeh('${k}', ${v.cost})">🔒 ${v.cost} 🪙</button>`}
+                        </div>
+                    </div>
+                `;
             }
-        });
-        window.addEventListener('keyup', e => {
-            if (e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'd' || e.key === 'w') gasPressed = false;
-            if (e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'a' || e.key === 's') brakePressed = false;
+            openModal("VEHICLE SHOWROOM", html);
         });
 
-        const btnGas = document.getElementById('btn-gas');
-        const btnBrake = document.getElementById('btn-brake');
+        window.selectVeh = (k) => {
+            storage.selectedVehicle = k;
+            storage.save();
+            closeModal();
+        };
+        window.unlockVeh = (k, cost) => {
+            if (storage.coins >= cost) {
+                storage.coins -= cost;
+                storage.unlockedVehicles.add(k);
+                storage.selectedVehicle = k;
+                storage.save();
+                sounds.coin();
+                closeModal();
+            } else {
+                alert("Need more coins! Complete runs or claim bonus in SHOP.");
+            }
+        };
 
-        const bindTouch = (el, setFn) => {
+        // 2. UPGRADES MODAL
+        document.getElementById('nav-btn-upgrades').addEventListener('click', () => {
+            const v = VEHICLES[storage.selectedVehicle];
+            const upg = storage.getUpgrades(v.name);
+
+            const items = [
+                { key: 'engine', name: 'Engine', desc: 'Increases horsepower and top speed' },
+                { key: 'suspension', name: 'Suspension', desc: 'Improves landing cushion and stability' },
+                { key: 'tires', name: 'Tires', desc: 'Increases traction and hill grip' },
+                { key: 'fuel', name: '4WD & Fuel', desc: 'Expands fuel tank and power delivery' }
+            ];
+
+            let html = `<p style="font-size: 13px; color: #38bdf8; font-weight: bold; margin-bottom: 6px;">TUNING: ${v.title.toUpperCase()}</p>`;
+            items.forEach(it => {
+                const lvl = upg[it.key];
+                const cost = lvl >= 10 ? 0 : lvl * 120;
+                html += `
+                    <div class="card-row">
+                        <div class="card-info" style="flex: 1;">
+                            <h4>${it.name} (LVL ${lvl}/10)</h4>
+                            <p>${it.desc}</p>
+                        </div>
+                        <div>
+                            ${lvl >= 10 ? `<button class="card-btn selected-badge">MAX</button>` :
+                              `<button class="card-btn unlock" onclick="buyUpgrade('${v.name}', '${it.key}', ${cost})">${cost} 🪙</button>`}
+                        </div>
+                    </div>
+                `;
+            });
+            openModal("TUNING WORKSHOP", html);
+        });
+
+        window.buyUpgrade = (vehName, key, cost) => {
+            if (storage.coins >= cost) {
+                storage.coins -= cost;
+                const upg = storage.getUpgrades(vehName);
+                upg[key] = Math.min(10, upg[key] + 1);
+                storage.setUpgrades(vehName, upg);
+                storage.save();
+                sounds.fuel();
+                closeModal();
+            } else {
+                alert("Not enough coins to tune this part!");
+            }
+        };
+
+        // 3. STAGES MODAL
+        document.getElementById('nav-btn-stages').addEventListener('click', () => {
+            let html = '';
+            for (let k in STAGES) {
+                const s = STAGES[k];
+                const isUnlocked = storage.unlockedStages.has(k);
+                const isSelected = storage.selectedStage === k;
+                const best = storage.getBestDistance(k);
+
+                html += `
+                    <div class="card-row ${isSelected ? 'selected' : ''}">
+                        <div class="card-info">
+                            <h4>${s.title}</h4>
+                            <p>${s.desc}</p>
+                            ${best > 0 ? `<p style="color: #ffd700; font-weight: bold;">Best: ${best}m</p>` : ''}
+                        </div>
+                        <div>
+                            ${isSelected ? `<button class="card-btn selected-badge">SELECTED</button>` :
+                              isUnlocked ? `<button class="card-btn select" onclick="selectStage('${k}')">SELECT</button>` :
+                              `<button class="card-btn unlock" onclick="unlockStage('${k}', ${s.cost})">🔒 ${s.cost} 🪙</button>`}
+                        </div>
+                    </div>
+                `;
+            }
+            openModal("MAPS & TRACKS", html);
+        });
+
+        window.selectStage = (k) => {
+            storage.selectedStage = k;
+            storage.save();
+            closeModal();
+        };
+        window.unlockStage = (k, cost) => {
+            if (storage.coins >= cost) {
+                storage.coins -= cost;
+                storage.unlockedStages.add(k);
+                storage.selectedStage = k;
+                storage.save();
+                sounds.coin();
+                closeModal();
+            } else {
+                alert("Need more coins to unlock this stage!");
+            }
+        };
+
+        // 4. SHOP MODAL
+        document.getElementById('nav-btn-shop').addEventListener('click', () => {
+            let html = `
+                <div class="card-row">
+                    <div class="card-info">
+                        <h4>🎁 Free Daily Reward</h4>
+                        <p>Claim 500 free bonus coins!</p>
+                    </div>
+                    <div>
+                        <button class="card-btn unlock" onclick="claimFreeBonus()">CLAIM +500 🪙</button>
+                    </div>
+                </div>
+            `;
+            openModal("REWARDS & COINS", html);
+        });
+
+        window.claimFreeBonus = () => {
+            storage.coins += 500;
+            storage.save();
+            sounds.coin();
+            closeModal();
+        };
+
+        /* -------------------------------------------------------------
+           RACE FLOW & RENDERING
+        ------------------------------------------------------------- */
+        const garageScreen = document.getElementById('garage-screen');
+        const raceScreen = document.getElementById('race-screen');
+
+        document.getElementById('btn-start-race').addEventListener('click', startRace);
+
+        function startRace() {
+            sounds.init();
+            activePhysics = new PhysicsEngine(storage.selectedVehicle, storage.selectedStage);
+            isGameRunning = true;
+            isGasPressed = false;
+            isBrakePressed = false;
+
+            garageScreen.style.display = 'none';
+            raceScreen.style.display = 'block';
+            resizeAll();
+        }
+
+        function returnToGarage() {
+            isGameRunning = false;
+            activePhysics = null;
+            raceScreen.style.display = 'none';
+            garageScreen.style.display = 'flex';
+            closeModal();
+            updateGarageUI();
+        }
+
+        // Pause
+        document.getElementById('btn-pause-race').addEventListener('click', () => {
+            isGameRunning = false;
+            openModal("GAME PAUSED", `
+                <button class="action-btn-red" style="background: #10b981;" onclick="resumeRace()">RESUME</button>
+                <button class="action-btn-outline" style="margin-bottom: 8px;" onclick="startRace()">RESTART</button>
+                <button class="action-btn-outline" onclick="returnToGarage()">EXIT TO GARAGE</button>
+            `);
+        });
+
+        window.resumeRace = () => {
+            closeModal();
+            isGameRunning = true;
+        };
+
+        function showGameOver(isFlipped) {
+            isGameRunning = false;
+            const dist = activePhysics.distanceMeters;
+            const coinsEarned = activePhysics.coinsScore;
+            const isNew = storage.setBestDistance(activePhysics.stg.name, dist);
+
+            modalContent.innerHTML = `
+                <div class="gameover-dialog">
+                    <div class="gameover-icon">${isFlipped ? '😵' : '⛽'}</div>
+                    <div class="gameover-title">${isFlipped ? 'DRIVER DOWN!' : 'OUT OF FUEL!'}</div>
+                    <div class="gameover-desc">${isFlipped ? 'Vehicle flipped on rough terrain' : 'Fuel tank completely drained'}</div>
+                    ${isNew ? `<div style="background: #f59e0b; color: #3e2723; padding: 4px 12px; border-radius: 8px; font-weight: 900; margin-bottom: 12px;">NEW DISTANCE RECORD!</div>` : ''}
+                    <div class="gameover-stats">
+                        <div>
+                            <div style="font-size: 11px; color: #64748b; font-weight: bold;">DISTANCE</div>
+                            <div style="font-size: 20px; font-weight: 900; color: #ffffff;">${dist}m</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 11px; color: #64748b; font-weight: bold;">COINS</div>
+                            <div style="font-size: 20px; font-weight: 900; color: #ffd700;">+${coinsEarned}</div>
+                        </div>
+                    </div>
+                    <button class="action-btn-red" onclick="startRace()">TRY AGAIN</button>
+                    <button class="action-btn-outline" onclick="returnToGarage()">GARAGE & UPGRADES</button>
+                </div>
+            `;
+            modalContainer.style.display = 'flex';
+        }
+
+        // Touch Pedal Listeners
+        const pedalGas = document.getElementById('pedal-gas');
+        const pedalBrake = document.getElementById('pedal-brake');
+
+        const setupTouchPedal = (el, setFn) => {
             el.addEventListener('pointerdown', e => { e.preventDefault(); setFn(true); el.classList.add('active'); });
             window.addEventListener('pointerup', () => { setFn(false); el.classList.remove('active'); });
             window.addEventListener('pointercancel', () => { setFn(false); el.classList.remove('active'); });
         };
-        bindTouch(btnGas, v => gasPressed = v);
-        bindTouch(btnBrake, v => brakePressed = v);
+        setupTouchPedal(pedalGas, v => isGasPressed = v);
+        setupTouchPedal(pedalBrake, v => isBrakePressed = v);
 
-        // Vehicle & Stage Select
-        document.querySelectorAll('#vehicle-grid .option-card').forEach(card => {
-            card.addEventListener('click', () => {
-                document.querySelectorAll('#vehicle-grid .option-card').forEach(c => c.classList.remove('selected'));
-                card.classList.add('selected');
-                selectedVehicle = card.dataset.veh;
-            });
+        // Keyboard Controls
+        window.addEventListener('keydown', e => {
+            if (e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'd' || e.key === 'w') isGasPressed = true;
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'a' || e.key === 's') isBrakePressed = true;
+            if (e.key === 'Escape' && isGameRunning) returnToGarage();
         });
-        document.querySelectorAll('#stage-grid .option-card').forEach(card => {
-            card.addEventListener('click', () => {
-                document.querySelectorAll('#stage-grid .option-card').forEach(c => c.classList.remove('selected'));
-                card.classList.add('selected');
-                selectedStage = card.dataset.stage;
-            });
+        window.addEventListener('keyup', e => {
+            if (e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'd' || e.key === 'w') isGasPressed = false;
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'a' || e.key === 's') isBrakePressed = false;
         });
 
-        document.getElementById('btn-start').addEventListener('click', () => {
-            document.getElementById('menu-overlay').style.display = 'none';
-            initGame();
-            gameState = "PLAYING";
-        });
+        /* -------------------------------------------------------------
+           MAIN ANIMATION & SIMULATION LOOP
+        ------------------------------------------------------------- */
+        let lastTime = performance.now();
 
-        document.getElementById('btn-retry').addEventListener('click', () => {
-            document.getElementById('gameover-overlay').style.display = 'none';
-            initGame();
-            gameState = "PLAYING";
-        });
+        function renderRaceCanvas() {
+            const w = gameCanvas.width;
+            const h = gameCanvas.height;
+            gameCtx.clearRect(0, 0, w, h);
 
-        document.getElementById('btn-garage').addEventListener('click', () => {
-            document.getElementById('gameover-overlay').style.display = 'none';
-            document.getElementById('bank-coins').innerText = `Total Bank: 🪙 ${totalCoins}`;
-            document.getElementById('menu-overlay').style.display = 'flex';
-            gameState = "MENU";
-        });
+            const stg = activePhysics.stg;
+            const veh = activePhysics.veh;
+
+            // 1. Sky Gradient
+            const grad = gameCtx.createLinearGradient(0, 0, 0, h);
+            grad.addColorStop(0, stg.skyTop);
+            grad.addColorStop(1, stg.skyBottom);
+            gameCtx.fillStyle = grad;
+            gameCtx.fillRect(0, 0, w, h);
+
+            // Camera offsets
+            const scale = 1.0;
+            const camX = w * 0.32 - activePhysics.chassisX;
+            const camY = h * 0.62 - activePhysics.chassisY;
+
+            // 2. Terrain Subsurface
+            gameCtx.fillStyle = stg.subsurface;
+            gameCtx.beginPath();
+            const startX = Math.floor(activePhysics.chassisX - 600);
+            const endX = Math.floor(activePhysics.chassisX + 900);
+            gameCtx.moveTo(startX + camX, h + 200);
+            for (let x = startX; x <= endX; x += 15) {
+                gameCtx.lineTo(x + camX, activePhysics.getElevation(x) + camY);
+            }
+            gameCtx.lineTo(endX + camX, h + 200);
+            gameCtx.closePath();
+            gameCtx.fill();
+
+            // 3. Terrain Surface Line
+            gameCtx.strokeStyle = stg.surface;
+            gameCtx.lineWidth = 9;
+            gameCtx.beginPath();
+            for (let x = startX; x <= endX; x += 15) {
+                if (x === startX) gameCtx.moveTo(x + camX, activePhysics.getElevation(x) + camY);
+                else gameCtx.lineTo(x + camX, activePhysics.getElevation(x) + camY);
+            }
+            gameCtx.stroke();
+
+            // 4. Starting Runway Line (White asphalt marker)
+            if (startX <= activePhysics.flatRunway) {
+                gameCtx.strokeStyle = "#ffffff";
+                gameCtx.lineWidth = 4;
+                gameCtx.beginPath();
+                gameCtx.moveTo(camX, activePhysics.baseGroundY + camY);
+                gameCtx.lineTo(activePhysics.flatRunway + camX, activePhysics.baseGroundY + camY);
+                gameCtx.stroke();
+            }
+
+            // 5. Coins
+            for (let c of activePhysics.coins) {
+                if (!c.collected && c.x >= startX && c.x <= endX) {
+                    const sx = c.x + camX;
+                    const sy = c.y + camY;
+                    gameCtx.fillStyle = c.val >= 500 ? "#ec4899" : (c.val >= 100 ? "#ef4444" : "#ffd700");
+                    gameCtx.beginPath();
+                    gameCtx.arc(sx, sy, 14, 0, Math.PI * 2);
+                    gameCtx.fill();
+                    gameCtx.strokeStyle = "#ffffff";
+                    gameCtx.lineWidth = 1.5;
+                    gameCtx.stroke();
+
+                    gameCtx.fillStyle = "#0f172a";
+                    gameCtx.font = "bold 11px sans-serif";
+                    gameCtx.textAlign = "center";
+                    gameCtx.textBaseline = "middle";
+                    gameCtx.fillText(c.val, sx, sy);
+                }
+            }
+
+            // 6. Fuel Jerrycans
+            for (let f of activePhysics.fuelCans) {
+                if (!f.collected && f.x >= startX && f.x <= endX) {
+                    const sx = f.x + camX;
+                    const sy = f.y + camY;
+                    gameCtx.fillStyle = "#ef4444";
+                    gameCtx.beginPath();
+                    gameCtx.roundRect(sx - 12, sy - 16, 24, 32, 4);
+                    gameCtx.fill();
+                    gameCtx.fillStyle = "#ffffff";
+                    gameCtx.font = "bold 9px sans-serif";
+                    gameCtx.textAlign = "center";
+                    gameCtx.textBaseline = "middle";
+                    gameCtx.fillText("GAS", sx, sy);
+                }
+            }
+
+            // 7. Vehicle Body
+            drawVehicleBody(gameCtx, veh, activePhysics.chassisX + camX, activePhysics.chassisY + camY, activePhysics.chassisAngle, 1.0);
+
+            // 8. Floating Notifications
+            for (let i = activePhysics.floatingTexts.length - 1; i >= 0; i--) {
+                const ft = activePhysics.floatingTexts[i];
+                ft.life -= 0.02;
+                ft.y -= 1.2;
+                gameCtx.fillStyle = ft.color;
+                gameCtx.font = "bold 18px sans-serif";
+                gameCtx.textAlign = "center";
+                gameCtx.fillText(ft.text, ft.x + camX, ft.y + camY);
+                if (ft.life <= 0) activePhysics.floatingTexts.splice(i, 1);
+            }
+
+            // 9. Update Race HUD
+            document.getElementById('hud-stage-name').innerText = stg.title.toUpperCase();
+            document.getElementById('hud-dist-val').innerText = `${activePhysics.distanceMeters}m`;
+            document.getElementById('hud-coins-val').innerText = `${activePhysics.coinsScore}`;
+
+            const fuelRatio = Math.max(0, Math.min(1, activePhysics.currentFuel / activePhysics.maxFuel));
+            const fuelFill = document.getElementById('hud-fuel-fill');
+            fuelFill.style.width = `${fuelRatio * 100}%`;
+            fuelFill.style.backgroundColor = fuelRatio < 0.25 ? "#ef4444" : "#10b981";
+
+            const fuelPill = document.getElementById('hud-fuel-pill');
+            if (fuelRatio < 0.25) fuelPill.classList.add('critical-fuel');
+            else fuelPill.classList.remove('critical-fuel');
+
+            document.getElementById('gauge-rpm').innerText = Math.floor(activePhysics.rpm);
+            document.getElementById('gauge-speed').innerText = Math.floor(activePhysics.speedKmh);
+        }
+
+        function gameLoop(now) {
+            const dt = Math.min(0.05, (now - lastTime) / 1000);
+            lastTime = now;
+
+            if (isGameRunning && activePhysics) {
+                const status = activePhysics.update(dt, isGasPressed, isBrakePressed);
+                renderRaceCanvas();
+
+                if (status === "FLIPPED") showGameOver(true);
+                else if (status === "FUEL") showGameOver(false);
+            } else {
+                drawShowcaseVehicle(now);
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Init
+        resizeAll();
+        updateGarageUI();
+        requestAnimationFrame(gameLoop);
     </script>
 </body>
 </html>

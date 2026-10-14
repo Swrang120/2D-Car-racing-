@@ -1,65 +1,60 @@
-# Hill Climb Racing - 2D Physics Racing Game
+# Hill Climb Racing - 2D Physics Racing Game (Android & Web)
 
-A complete 2D physics-based side-scrolling hill climbing racing game featuring realistic suspension dynamics, collectible coins, fuel management, endless procedural terrain, and vehicle upgrades.
-
----
-
-## 🎮 Play Directly Online (GitHub Pages)
-If you enable GitHub Pages on this repository, you can play the game instantly in your browser on PC or Mobile!
-
-### How to Fix GitHub 404 Error:
-If you are seeing a **404 Not Found** error on your GitHub Pages URL, follow these simple steps to activate it:
-1. Go to your repository on **GitHub.com**.
-2. Click on **Settings** (tab at the top right of the repo).
-3. In the left sidebar, click on **Pages**.
-4. Under **Build and deployment**:
-   - **Source**: Select `Deploy from a branch`.
-   - **Branch**: Choose `main` (or `master`) and select `/ (root)`.
-   - Click **Save**.
-5. Wait 1–2 minutes for GitHub Pages to deploy. Once the green checkmark appears, your website link (`https://<username>.github.io/<repo>/`) will open the game directly!
+A complete 2D physics-based side-scrolling hill climbing racing game featuring realistic suspension dynamics, collectible coins, fuel management, endless procedural terrain, garage upgrades, and multiple vehicles & stages.
 
 ---
 
-## 🚀 Game Features
+## 🌐 GitHub Pages Live Website (404 Error Fix / कैसे ठीक करें)
 
-- **Stable 50-Meter Runway**: Flat starting terrain that ensures safe spawn and smooth acceleration without flipping.
-- **Endless Procedural Driving**: Continuous infinite-runner terrain with hills, jumps, chasms, and obstacles.
-- **8 Selectable Vehicles**:
-  - **Classic Red Jeep**: Free starter 4x4 with balanced stability.
-  - **Motocross Bike**: Agile two-wheeler for backflips and frontflips.
-  - **Monster Truck**: Big bouncy tires that crush obstacles.
-  - **Hippie Van**: Retro flower-power bus with bouncy shocks.
-  - **One-wheeler**: Unicycle balance challenge with huge stunt multipliers.
-  - **Turbo Rally Car**: Aerodynamic speedster with fast acceleration.
-  - **Army Tank**: Heavy armored continuous-tread powerhouse.
-  - **Luxury Supercar**: High-downforce twin-turbo hypercar.
-- **6 Diverse Stages**:
-  - **Countryside** (Lush green hills, wooden bridges, 1.0x grip)
-  - **Desert** (Sandy dunes, pyramids, warm sun)
-  - **Arctic** (Icy slippery glaciers, 0.65x grip)
-  - **Moon** (Low gravity 3.6 m/s², massive high-flying jumps)
-  - **Cave** (Underground caverns, bumpy rocks, glowing crystals)
-  - **Highway** (Smooth asphalt flyovers, city skyline, 1.25x grip)
-- **Economy & Upgrades**:
-  - Collect coins in values of **5, 10, 50, 100, and 500**.
-  - Red Fuel Jerrycans placed periodically along the road.
-  - Upgrade **Engine**, **Suspension**, **Tires**, and **4WD/Fuel**.
+यदि GitHub Pages पर **404 Not Found** आ रहा है, तो अब यह पूरी तरह हल (fix) हो चुका है:
+
+### तरीका 1 (Automatic via GitHub Actions):
+1. अपने GitHub Repository में जाएँ।
+2. **Settings** -> **Pages** में जाएँ।
+3. **Build and deployment** -> **Source** में **GitHub Actions** चुनें।
+4. बस! GitHub Actions अपने आप `index.html` को डिप्लॉय कर देगा और आपकी वेबसाइट बिना किसी 404 के तुरंत खुल जाएगी।
+
+### तरीका 2 (Deploy from a branch):
+1. अपने GitHub Repository में **Settings** -> **Pages** में जाएँ।
+2. **Build and deployment** -> **Source** में `Deploy from a branch` चुनें।
+3. **Branch** में `main` (या `master`) चुनें, और फोल्डर में `/ (root)` या `/docs` दोनों में से कोई भी चुनें (दोनों जगह `index.html` और `.nojekyll` मौजूद है)।
+4. **Save** पर क्लिक करें। 1-2 मिनट में आपकी वेबसाइट लाइव हो जाएगी!
 
 ---
 
-## 🕹️ Controls
+## 🚗 Features (App और Web दोनों में 100% Same)
 
-- **GAS (Accelerate / Backflip in air)**:
-  - Touch: Right on-screen pedal
-  - Keyboard: `Up Arrow`, `Right Arrow`, `W`, or `D`
-- **BRAKE (Brake & Reverse / Frontflip in air)**:
-  - Touch: Left on-screen pedal
-  - Keyboard: `Down Arrow`, `Left Arrow`, `S`, or `A`
+1. **50-Meter Flat Runway**:
+   - शुरुआत में गाड़ी कभी नहीं पलटेगी (Zero flip at spawn). 50 मीटर तक बिल्कुल सपाट रोड।
+2. **Endless Infinite Runner Mode**:
+   - कोई 600m की लिमिट नहीं — जब तक आप ड्राइव करेंगे, पहाड़ियां, रैम्प, और पुल लगातार जनरेट होते रहेंगे।
+3. **8 Vehicles**:
+   - **Classic Red Jeep** (Free Starter)
+   - **Motocross Dirt Bike** (Agile flipper)
+   - **Monster Truck** (Bouncy giant tires)
+   - **Hippie Van** (Flower-power camper)
+   - **One-wheeler** (Unicycle master)
+   - **Turbo Rally Car** (Low gravity aerodynamic speed)
+   - **Army Tank** (Heavy powerhouse)
+   - **Luxury Supercar** (Hypercar downforce)
+4. **6 Stages**:
+   - **Countryside** (हरी-भरी पहाड़ियां और पुल)
+   - **Desert** (रेगिस्तानी रेत और पिरामिड)
+   - **Arctic** (बर्फ़ीली फिसलन भरी चट्टानें)
+   - **Moon** (कम गुरुत्वाकर्षण - 3.6 m/s² में ऊंची छलांग)
+   - **Cave** (भूमिगत गुफा और क्रिस्टल)
+   - **Highway** (स्मूथ हाईवे और फ़्लाईओवर)
+5. **Coin Economy & Upgrades**:
+   - सिक्के: **5, 10, 50, 100, और 500** कॉइन्स।
+   - लाल फ़्यूल जेरीकैन (Fuel canisters).
+   - वाहन अपग्रेड: Engine, Suspension, Tires, 4WD/Fuel.
 
 ---
 
-## 📱 Platforms Included
+## 🕹️ Controls (नियंत्रण)
 
-1. **Android App (`app/`)**: Full Jetpack Compose Android app built with Kotlin, custom Canvas renderer, and native multi-touch pedals.
-2. **Web Edition (`index.html`)**: Instant browser-playable HTML5 Canvas version ready for GitHub Pages.
-3. **Python Script (`hill_climb_racing.py`)**: Standalone Pygame script. Run with `python hill_climb_racing.py`.
+- **Mobile**: स्क्रीन पर दाएं तरफ **GAS** और बाएं तरफ **BRAKE** पेडल।
+- **Keyboard (PC Web)**:
+  - **GAS**: `Arrow Right`, `Arrow Up`, `W`, या `D`
+  - **BRAKE / REVERSE**: `Arrow Left`, `Arrow Down`, `A`, या `S`
+  - हवा में स्टंट: Gas दबाने से Backflip, Brake दबाने से Frontflip.
