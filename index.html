@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hill Climb Racing - 2D Physics Game</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0f172a;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #ffffff;
+        }
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background: #0f172a;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        /* Top HUD */
+        #hud {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            right: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .hud-card {
+            background: rgba(15, 23, 42, 0.85);
+            border: 1.5px solid #38bdf8;
+            border-radius: 12px;
+            padding: 6px 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .hud-label {
+            font-size: 11px;
+            color: #94a3b8;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .hud-val {
+            font-size: 17px;
+            font-weight: 900;
+            color: #ffffff;
+        }
+        .fuel-bar-container {
+            width: 140px;
+            height: 14px;
+            background: #334155;
+            border-radius: 7px;
+            overflow: hidden;
+            margin-top: 3px;
+        }
+        .fuel-bar {
+            height: 100%;
+            width: 100%;
+            background: #10b981;
+            transition: width 0.1s linear, background-color 0.2s;
+        }
+        /* Touch Pedals */
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .pedal-btn {
+            pointer-events: auto;
+            width: 110px;
+            height: 90px;
+            background: linear-gradient(180deg, #64748b, #334155);
+            border: 3px solid #cbd5e1;
+            border-radius: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 6px 14px rgba(0,0,0,0.6);
+            cursor: pointer;
+            transition: transform 0.05s, background 0.05s;
+        }
+        .pedal-btn:active, .pedal-btn.active {
+            transform: translateY(6px);
+            background: linear-gradient(180deg, #475569, #1e293b);
+            border-color: #94a3b8;
+        }
+        .pedal-btn span {
+            font-size: 18px;
+            font-weight: 900;
+            letter-spacing: 1px;
+        }
+        .pedal-btn small {
+            font-size: 10px;
+            color: #cbd5e1;
+            font-weight: 600;
+        }
+        /* Modals / Overlays */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.88);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            backdrop-filter: blur(4px);
+        }
+        .modal-box {
+            background: #1e293b;
+            border: 2px solid #38bdf8;
+            border-radius: 20px;
+            padding: 24px;
+            max-width: 480px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+        }
+        .modal-title {
+            font-size: 26px;
+            font-weight: 900;
+            margin-bottom: 8px;
+            color: #ffffff;
+        }
+        .modal-desc {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-bottom: 20px;
+        }
+        .btn-primary {
+            background: #10b981;
+            color: #ffffff;
+            border: none;
+            padding: 12px 28px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+            margin: 6px;
+            transition: transform 0.1s, opacity 0.1s;
+        }
+        .btn-primary:hover {
+            opacity: 0.92;
+        }
+        .btn-primary:active {
+            transform: scale(0.96);
+        }
+        .btn-secondary {
+            background: #334155;
+            color: #ffffff;
+            border: 1.5px solid #64748b;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            margin: 6px;
+        }
+        .grid-options {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin: 16px 0;
+            max-height: 240px;
+            overflow-y: auto;
+        }
+        .option-card {
+            background: #0f172a;
+            border: 2px solid #475569;
+            border-radius: 12px;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 700;
+            transition: all 0.15s;
+        }
+        .option-card.selected {
+            border-color: #10b981;
+            background: #064e3b;
+        }
+        .stat-badge {
+            font-size: 20px;
+            font-weight: 900;
+            color: #ffd700;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <!-- Live Game Canvas -->
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Top HUD -->
+        <div id="hud">
+            <div class="hud-card">
+                <div>
+                    <div class="hud-label" id="stage-badge">Countryside</div>
+                    <div class="hud-val" id="dist-val">0m</div>
+                </div>
+            </div>
+            <div class="hud-card">
+                <div>
+                    <div class="hud-label">Fuel</div>
+                    <div class="fuel-bar-container">
+                        <div class="fuel-bar" id="fuel-bar"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="hud-card">
+                <div>
+                    <div class="hud-label">Coins</div>
+                    <div class="hud-val" id="coins-val">🪙 0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Touch Pedals -->
+        <div id="controls">
+            <div class="pedal-btn" id="btn-brake">
+                <span>BRAKE</span>
+                <small>◄ REVERSE</small>
+            </div>
+            <div class="pedal-btn" id="btn-gas">
+                <span>GAS</span>
+                <small>ACCEL ►</small>
+            </div>
+        </div>
+
+        <!-- Garage / Start Modal -->
+        <div class="overlay" id="menu-overlay">
+            <div class="modal-box">
+                <h1 class="modal-title">HILL CLIMB RACING</h1>
+                <p class="modal-desc">2D Physics Side-scrolling Endless Driving Game</p>
+
+                <div class="stat-badge" id="bank-coins">Total Bank: 🪙 500</div>
+
+                <div style="text-align: left; font-size: 12px; color: #94a3b8; font-weight: bold; margin-top: 10px;">SELECT VEHICLE:</div>
+                <div class="grid-options" id="vehicle-grid">
+                    <div class="option-card selected" data-veh="Jeep">Classic Jeep 🚙</div>
+                    <div class="option-card" data-veh="Bike">Motocross Bike 🏍️</div>
+                    <div class="option-card" data-veh="Monster Truck">Monster Truck 🛻</div>
+                    <div class="option-card" data-veh="Hippie Van">Hippie Van 🚐</div>
+                    <div class="option-card" data-veh="One-wheeler">One-wheeler 🛞</div>
+                    <div class="option-card" data-veh="Rally Car">Rally Car 🏎️</div>
+                    <div class="option-card" data-veh="Tank">Army Tank 🛡️</div>
+                    <div class="option-card" data-veh="Supercar">Supercar ⚡</div>
+                </div>
+
+                <div style="text-align: left; font-size: 12px; color: #94a3b8; font-weight: bold; margin-top: 10px;">SELECT STAGE:</div>
+                <div class="grid-options" id="stage-grid">
+                    <div class="option-card selected" data-stage="Countryside">Countryside 🌲</div>
+                    <div class="option-card" data-stage="Desert">Desert Dunes 🏜️</div>
+                    <div class="option-card" data-stage="Arctic">Arctic Snow ❄️</div>
+                    <div class="option-card" data-stage="Moon">Moon Space 🪐</div>
+                    <div class="option-card" data-stage="Cave">Cave Cavern 🔮</div>
+                    <div class="option-card" data-stage="Highway">Highway Bridge 🌉</div>
+                </div>
+
+                <button class="btn-primary" id="btn-start" style="width: 100%; margin-top: 14px; font-size: 18px; padding: 14px;">START RACE!</button>
+                <p style="font-size: 11px; color: #64748b; margin-top: 10px;">Controls: On-screen Pedals or [W/D, Up/Right Arrow] = Gas, [S/A, Down/Left Arrow] = Brake</p>
+            </div>
+        </div>
+
+        <!-- Game Over Modal -->
+        <div class="overlay" id="gameover-overlay" style="display: none;">
+            <div class="modal-box" style="border-color: #ef4444;">
+                <h1 class="modal-title" id="go-title" style="color: #ef4444;">DRIVER DOWN!</h1>
+                <p class="modal-desc" id="go-desc">Vehicle flipped on rough terrain</p>
+                <div class="hud-card" style="margin: 16px auto; justify-content: space-around; width: 100%;">
+                    <div>
+                        <div class="hud-label">Distance</div>
+                        <div class="hud-val" id="go-dist">0m</div>
+                    </div>
+                    <div>
+                        <div class="hud-label">Coins Earned</div>
+                        <div class="hud-val" id="go-coins">+0</div>
+                    </div>
+                </div>
+                <button class="btn-primary" id="btn-retry" style="width: 100%; background: #ef4444;">TRY AGAIN</button>
+                <button class="btn-secondary" id="btn-garage" style="width: 100%;">GARAGE & UPGRADES</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- GAME LOGIC & 2D PHYSICS ENGINE ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const STAGES = {
+            "Countryside": { skyTop: "#4fc3f7", skyBottom: "#e1f5fe", surface: "#7cb342", subsurface: "#5d4037", gravity: 9.8, friction: 1.0 },
+            "Desert": { skyTop: "#29b6f6", skyBottom: "#fff3e0", surface: "#fbc02d", subsurface: "#e65100", gravity: 9.8, friction: 0.88 },
+            "Arctic": { skyTop: "#81d4fa", skyBottom: "#e0f7fa", surface: "#e0f2f1", subsurface: "#37474f", gravity: 9.8, friction: 0.65 },
+            "Moon": { skyTop: "#0d1b2a", skyBottom: "#1b263b", surface: "#b0bec5", subsurface: "#263238", gravity: 3.6, friction: 0.95 },
+            "Cave": { skyTop: "#1a1a24", skyBottom: "#2d2235", surface: "#7e57c2", subsurface: "#21172b", gravity: 9.8, friction: 0.95 },
+            "Highway": { skyTop: "#37474f", skyBottom: "#78909c", surface: "#263238", subsurface: "#1e293b", gravity: 9.8, friction: 1.25 }
+        };
+
+        const VEHICLES = {
+            "Jeep": { mass: 120, wb: 68, r: 18, susp: 24, torque: 1.0, color: "#d32f2f" },
+            "Bike": { mass: 65, wb: 56, r: 16, susp: 26, torque: 1.25, color: "#f57c00" },
+            "Monster Truck": { mass: 190, wb: 84, r: 28, susp: 34, torque: 1.45, color: "#1976d2" },
+            "Hippie Van": { mass: 145, wb: 76, r: 19, susp: 26, torque: 1.3, color: "#8e24aa" },
+            "One-wheeler": { mass: 55, wb: 0, r: 22, susp: 26, torque: 1.5, color: "#e91e63", isOne: true },
+            "Rally Car": { mass: 95, wb: 68, r: 17, susp: 20, torque: 1.7, color: "#00acc1" },
+            "Tank": { mass: 260, wb: 92, r: 20, susp: 18, torque: 2.0, color: "#388e3c" },
+            "Supercar": { mass: 105, wb: 72, r: 18, susp: 19, torque: 2.2, color: "#ffd600" }
+        };
+
+        let selectedVehicle = "Jeep";
+        let selectedStage = "Countryside";
+        let totalCoins = 500;
+        let gameState = "MENU"; // MENU, PLAYING, GAMEOVER
+
+        let gasPressed = false;
+        let brakePressed = false;
+
+        // Physics State
+        let baseGroundY = 480;
+        let flatRunway = 1500; // 50m flat runway
+        let car = {
+            x: 180, y: 438, angle: 0,
+            vx: 0, vy: 0, angularVel: 0,
+            rearX: 146, rearY: 462, frontX: 214, frontY: 462,
+            fuel: 100, maxFuel: 100,
+            distance: 0, runCoins: 0,
+            grace: 3.0
+        };
+
+        let coins = [];
+        let fuelCans = [];
+        let particles = [];
+        let floatingTexts = [];
+        let frontierX = 0;
+
+        function getTerrainElevation(x) {
+            if (x <= flatRunway) return baseGroundY;
+            const distPast = x - flatRunway;
+            const blend = Math.min(1.0, distPast / 400.0);
+            const w1 = Math.sin(x * 0.0028) * 80;
+            const w2 = Math.sin(x * 0.0075) * 38;
+            const w3 = Math.sin(x * 0.017) * 16;
+            const w4 = Math.sin(x * 0.0006) * 120;
+            return baseGroundY + (w1 + w2 + w3 + w4) * blend;
+        }
+
+        function getTerrainSlope(x) {
+            const dx = 3.0;
+            return Math.atan2(getTerrainElevation(x + dx) - getTerrainElevation(x - dx), dx * 2.0);
+        }
+
+        function expandWorld(targetX) {
+            while (frontierX < targetX) {
+                const cx = frontierX;
+                if (cx > 800 && Math.random() < 0.025) {
+                    fuelCans.push({ id: Math.random(), x: cx, y: getTerrainElevation(cx) - 24, collected: false });
+                    frontierX += 160;
+                    continue;
+                }
+                const gy = getTerrainElevation(cx);
+                const val = [5, 10, 50, 100, 500][Math.floor(Math.random() * 5)];
+                coins.push({ id: Math.random(), x: cx, y: gy - 28, val: val, collected: false });
+                frontierX += 45;
+            }
+        }
+
+        function initGame() {
+            const spec = VEHICLES[selectedVehicle];
+            const halfBase = spec.isOne ? 0 : spec.wb * 0.5;
+
+            car.x = 180;
+            car.y = baseGroundY - spec.r - spec.susp;
+            car.angle = 0;
+            car.vx = 0;
+            car.vy = 0;
+            car.angularVel = 0;
+            car.rearX = car.x - halfBase;
+            car.rearY = baseGroundY - spec.r;
+            car.frontX = car.x + halfBase;
+            car.frontY = baseGroundY - spec.r;
+            car.fuel = 100;
+            car.maxFuel = 100;
+            car.distance = 0;
+            car.runCoins = 0;
+            car.grace = 3.0;
+
+            coins = [];
+            fuelCans = [];
+            particles = [];
+            floatingTexts = [];
+            frontierX = 0;
+            expandWorld(3000);
+
+            document.getElementById('stage-badge').innerText = selectedStage;
+            document.getElementById('dist-val').innerText = '0m';
+            document.getElementById('coins-val').innerText = '🪙 0';
+        }
+
+        function updatePhysics(dt) {
+            const spec = VEHICLES[selectedVehicle];
+            const stg = STAGES[selectedStage];
+            const grav = stg.gravity * 65;
+            const halfBase = spec.isOne ? 0 : spec.wb * 0.5;
+
+            if (car.grace > 0) car.grace = Math.max(0, car.grace - dt);
+
+            expandWorld(car.x + 2500);
+
+            // Fuel
+            if (car.fuel > 0) {
+                car.fuel = Math.max(0, car.fuel - 0.02 * dt * (gasPressed ? 5.5 : 1.0));
+            }
+            const hasFuel = car.fuel > 0.001;
+
+            // Wheels collision
+            const rGy = getTerrainElevation(car.rearX);
+            const rearOnGround = (car.rearY + spec.r) >= rGy;
+            if (rearOnGround) car.rearY = rGy - spec.r;
+
+            let frontOnGround = false;
+            if (!spec.isOne) {
+                const fGy = getTerrainElevation(car.frontX);
+                frontOnGround = (car.frontY + spec.r) >= fGy;
+                if (frontOnGround) car.frontY = fGy - spec.r;
+            } else {
+                car.frontX = car.x;
+                car.frontY = car.rearY;
+            }
+
+            const onGround = rearOnGround || frontOnGround;
+
+            // Drive forces
+            if (onGround) {
+                const slope = getTerrainSlope(car.x);
+                if (hasFuel && gasPressed) {
+                    const driveAcc = 420 * spec.torque * stg.friction;
+                    car.vx += driveAcc * dt * Math.cos(slope);
+                    car.vy += driveAcc * dt * Math.sin(slope);
+                } else if (brakePressed) {
+                    car.vx *= (1.0 - dt * 5.5);
+                    if (car.vx < 10) {
+                        const revAcc = 180 * spec.torque * stg.friction;
+                        car.vx -= revAcc * dt * Math.cos(slope);
+                        car.vy -= revAcc * dt * Math.sin(slope);
+                    }
+                } else {
+                    car.vx *= (1.0 - dt * 0.35);
+                }
+                car.vy += grav * dt * 0.35;
+            } else {
+                car.vy += grav * dt;
+            }
+
+            // Suspension
+            const avgWheelY = spec.isOne ? car.rearY : (car.rearY + car.frontY) * 0.5;
+            const targetChassisY = avgWheelY - spec.susp;
+            if (onGround) {
+                const suspDeltaY = targetChassisY - car.y;
+                const suspForceY = suspDeltaY * 220 - car.vy * 24;
+                car.vy += (suspForceY / spec.mass) * dt;
+
+                const targetAngle = (!spec.isOne && rearOnGround && frontOnGround)
+                    ? Math.atan2(car.frontY - car.rearY, car.frontX - car.rearX)
+                    : getTerrainSlope(car.x);
+
+                const diff = car.angle - targetAngle;
+                car.angularVel -= diff * 14.0 * dt;
+                car.angularVel *= (1.0 - dt * 6.5);
+
+                if (gasPressed && hasFuel && !spec.isOne && car.angle > -0.12) {
+                    car.angularVel -= 0.15 * dt * spec.torque;
+                }
+            } else {
+                // In air
+                if (gasPressed) car.angularVel -= 4.2 * dt;
+                if (brakePressed) car.angularVel += 4.2 * dt;
+                car.angularVel *= (1.0 - dt * 0.8);
+            }
+
+            car.angularVel = Math.max(-8.5, Math.min(8.5, car.angularVel));
+
+            car.x += car.vx * dt;
+            car.y += car.vy * dt;
+            car.angle += car.angularVel * dt;
+
+            const cosA = Math.cos(car.angle);
+            car.rearX = car.x - cosA * halfBase;
+            if (!spec.isOne) car.frontX = car.x + cosA * halfBase;
+
+            // Distance
+            car.distance = Math.max(0, Math.floor((car.x - 180) / 26));
+
+            // Pickups
+            for (let c of coins) {
+                if (!c.collected && Math.hypot(car.x - c.x, car.y - c.y) < 48) {
+                    c.collected = true;
+                    car.runCoins += c.val;
+                    totalCoins += c.val;
+                    floatingTexts.push({ text: `+${c.val}`, x: c.x, y: c.y - 20, life: 1.0 });
+                }
+            }
+            for (let f of fuelCans) {
+                if (!f.collected && Math.hypot(car.x - f.x, car.y - f.y) < 50) {
+                    f.collected = true;
+                    car.fuel = car.maxFuel;
+                    floatingTexts.push({ text: `FUEL +100%!`, x: f.x, y: f.y - 25, life: 1.2 });
+                }
+            }
+
+            // Crash check: Only if upside-down and past 35m
+            if (car.grace <= 0 && car.distance >= 35) {
+                const normAngle = ((car.angle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+                const isUpsideDown = normAngle > 2.2 && normAngle < 4.1;
+                if (isUpsideDown) {
+                    const headX = car.x + Math.sin(car.angle) * 24;
+                    const headY = car.y - Math.cos(car.angle) * 24;
+                    if (headY >= getTerrainElevation(headX) - 2) {
+                        triggerGameOver("DRIVER DOWN!", "Vehicle flipped on rough terrain");
+                    }
+                }
+            }
+
+            // Out of fuel check
+            if (car.fuel <= 0.001 && Math.hypot(car.vx, car.vy) < 2) {
+                triggerGameOver("OUT OF FUEL!", "Fuel tank completely drained");
+            }
+        }
+
+        function triggerGameOver(title, desc) {
+            gameState = "GAMEOVER";
+            document.getElementById('go-title').innerText = title;
+            document.getElementById('go-desc').innerText = desc;
+            document.getElementById('go-dist').innerText = `${car.distance}m`;
+            document.getElementById('go-coins').innerText = `+${car.runCoins}`;
+            document.getElementById('gameover-overlay').style.display = 'flex';
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const stg = STAGES[selectedStage];
+            const spec = VEHICLES[selectedVehicle];
+
+            // Sky
+            const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            grad.addColorStop(0, stg.skyTop);
+            grad.addColorStop(1, stg.skyBottom);
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const camX = canvas.width * 0.32 - car.x;
+            const camY = canvas.height * 0.62 - car.y;
+
+            // Terrain
+            ctx.fillStyle = stg.subsurface;
+            ctx.beginPath();
+            const startX = Math.floor(car.x - 600);
+            const endX = Math.floor(car.x + 800);
+            ctx.moveTo(startX + camX, canvas.height + 200);
+            for (let x = startX; x <= endX; x += 15) {
+                ctx.lineTo(x + camX, getTerrainElevation(x) + camY);
+            }
+            ctx.lineTo(endX + camX, canvas.height + 200);
+            ctx.closePath();
+            ctx.fill();
+
+            // Grass line
+            ctx.strokeStyle = stg.surface;
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            for (let x = startX; x <= endX; x += 15) {
+                if (x === startX) ctx.moveTo(x + camX, getTerrainElevation(x) + camY);
+                else ctx.lineTo(x + camX, getTerrainElevation(x) + camY);
+            }
+            ctx.stroke();
+
+            // Runway Line
+            if (startX <= flatRunway) {
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(camX, baseGroundY + camY);
+                ctx.lineTo(flatRunway + camX, baseGroundY + camY);
+                ctx.stroke();
+            }
+
+            // Collectibles
+            for (let c of coins) {
+                if (!c.collected && c.x >= startX && c.x <= endX) {
+                    ctx.fillStyle = c.val >= 500 ? "#e91e63" : (c.val >= 100 ? "#ef4444" : "#ffd700");
+                    ctx.beginPath();
+                    ctx.arc(c.x + camX, c.y + camY, 13, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = "#000000";
+                    ctx.font = "bold 11px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.fillText(c.val, c.x + camX, c.y + camY);
+                }
+            }
+
+            for (let f of fuelCans) {
+                if (!f.collected && f.x >= startX && f.x <= endX) {
+                    ctx.fillStyle = "#ef4444";
+                    ctx.fillRect(f.x + camX - 12, f.y + camY - 16, 24, 32);
+                    ctx.fillStyle = "#ffffff";
+                    ctx.font = "bold 10px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText("GAS", f.x + camX, f.y + camY);
+                }
+            }
+
+            // Suspension & Wheels
+            ctx.strokeStyle = "#94a3b8";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(car.x + camX - 16, car.y + camY);
+            ctx.lineTo(car.rearX + camX, car.rearY + camY);
+            if (!spec.isOne) {
+                ctx.moveTo(car.x + camX + 16, car.y + camY);
+                ctx.lineTo(car.frontX + camX, car.frontY + camY);
+            }
+            ctx.stroke();
+
+            ctx.fillStyle = "#1e293b";
+            ctx.beginPath();
+            ctx.arc(car.rearX + camX, car.rearY + camY, spec.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#cbd5e1";
+            ctx.beginPath();
+            ctx.arc(car.rearX + camX, car.rearY + camY, spec.r * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            if (!spec.isOne) {
+                ctx.fillStyle = "#1e293b";
+                ctx.beginPath();
+                ctx.arc(car.frontX + camX, car.frontY + camY, spec.r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "#cbd5e1";
+                ctx.beginPath();
+                ctx.arc(car.frontX + camX, car.frontY + camY, spec.r * 0.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Chassis
+            ctx.save();
+            ctx.translate(car.x + camX, car.y + camY);
+            ctx.rotate(car.angle);
+
+            ctx.fillStyle = spec.color;
+            ctx.fillRect(-34, -12, 68, 22);
+
+            // Driver Head
+            ctx.fillStyle = "#fed7aa";
+            ctx.beginPath();
+            ctx.arc(-6, -20, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = spec.color;
+            ctx.beginPath();
+            ctx.arc(-6, -24, 7, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+
+            // Floating Texts
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const ft = floatingTexts[i];
+                ft.life -= 0.02;
+                ft.y -= 1;
+                ctx.fillStyle = `rgba(255, 215, 0, ${ft.life})`;
+                ctx.font = "bold 16px sans-serif";
+                ctx.fillText(ft.text, ft.x + camX, ft.y + camY);
+                if (ft.life <= 0) floatingTexts.splice(i, 1);
+            }
+
+            // Update DOM HUD
+            document.getElementById('dist-val').innerText = `${car.distance}m`;
+            document.getElementById('coins-val').innerText = `🪙 ${car.runCoins}`;
+            const fuelRatio = Math.max(0, Math.min(1, car.fuel / car.maxFuel));
+            const bar = document.getElementById('fuel-bar');
+            bar.style.width = `${fuelRatio * 100}%`;
+            bar.style.backgroundColor = fuelRatio < 0.25 ? "#ef4444" : "#10b981";
+        }
+
+        let lastTime = performance.now();
+        function loop(now) {
+            const dt = Math.min(0.05, (now - lastTime) / 1000);
+            lastTime = now;
+
+            if (gameState === "PLAYING") {
+                updatePhysics(dt);
+            }
+            render();
+            requestAnimationFrame(loop);
+        }
+        requestAnimationFrame(loop);
+
+        // --- INPUT & EVENT LISTENERS ---
+        window.addEventListener('keydown', e => {
+            if (e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'd' || e.key === 'w') gasPressed = true;
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'a' || e.key === 's') brakePressed = true;
+            if (e.key === ' ' && gameState === "GAMEOVER") {
+                document.getElementById('gameover-overlay').style.display = 'none';
+                initGame();
+                gameState = "PLAYING";
+            }
+        });
+        window.addEventListener('keyup', e => {
+            if (e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'd' || e.key === 'w') gasPressed = false;
+            if (e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'a' || e.key === 's') brakePressed = false;
+        });
+
+        const btnGas = document.getElementById('btn-gas');
+        const btnBrake = document.getElementById('btn-brake');
+
+        const bindTouch = (el, setFn) => {
+            el.addEventListener('pointerdown', e => { e.preventDefault(); setFn(true); el.classList.add('active'); });
+            window.addEventListener('pointerup', () => { setFn(false); el.classList.remove('active'); });
+            window.addEventListener('pointercancel', () => { setFn(false); el.classList.remove('active'); });
+        };
+        bindTouch(btnGas, v => gasPressed = v);
+        bindTouch(btnBrake, v => brakePressed = v);
+
+        // Vehicle & Stage Select
+        document.querySelectorAll('#vehicle-grid .option-card').forEach(card => {
+            card.addEventListener('click', () => {
+                document.querySelectorAll('#vehicle-grid .option-card').forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+                selectedVehicle = card.dataset.veh;
+            });
+        });
+        document.querySelectorAll('#stage-grid .option-card').forEach(card => {
+            card.addEventListener('click', () => {
+                document.querySelectorAll('#stage-grid .option-card').forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+                selectedStage = card.dataset.stage;
+            });
+        });
+
+        document.getElementById('btn-start').addEventListener('click', () => {
+            document.getElementById('menu-overlay').style.display = 'none';
+            initGame();
+            gameState = "PLAYING";
+        });
+
+        document.getElementById('btn-retry').addEventListener('click', () => {
+            document.getElementById('gameover-overlay').style.display = 'none';
+            initGame();
+            gameState = "PLAYING";
+        });
+
+        document.getElementById('btn-garage').addEventListener('click', () => {
+            document.getElementById('gameover-overlay').style.display = 'none';
+            document.getElementById('bank-coins').innerText = `Total Bank: 🪙 ${totalCoins}`;
+            document.getElementById('menu-overlay').style.display = 'flex';
+            gameState = "MENU";
+        });
+    </script>
+</body>
+</html>
