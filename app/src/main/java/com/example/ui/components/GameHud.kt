@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.LocalGasStation
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,7 +49,10 @@ fun GameHud(
     totalCoinsBank: Int,
     airtimeSeconds: Float,
     isAirborne: Boolean,
+    currentLevelNumber: Int = 1,
+    nextFinishDistance: Int = 100,
     onPauseClick: () -> Unit,
+    onRestartClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val fuelRatio = (currentFuel / maxFuel).coerceIn(0f, 1f)
@@ -66,7 +70,7 @@ fun GameHud(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left: Distance, Best Distance, and Stage Name
+            // Left: Distance, Best Distance, Level & Stage Name
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
@@ -83,13 +87,21 @@ fun GameHud(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Column {
-                        if (stageName.isNotEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = stageName.uppercase(),
-                                color = Color(0xFF38BDF8),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
+                                text = "LVL $currentLevelNumber",
+                                color = Color(0xFF10B981),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Black
                             )
+                            if (stageName.isNotEmpty()) {
+                                Text(
+                                    text = " • ${stageName.uppercase()}",
+                                    color = Color(0xFF38BDF8),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                         Text(
                             text = "${distanceMeters}m",
@@ -97,14 +109,12 @@ fun GameHud(
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Black
                         )
-                        if (bestDistanceMeters > 0) {
-                            Text(
-                                text = "BEST: ${bestDistanceMeters}m",
-                                color = Color(0xFFFFD54F),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                        Text(
+                            text = "FINISH GOAL: ${nextFinishDistance}m",
+                            color = Color(0xFFFFD54F),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -202,7 +212,28 @@ fun GameHud(
                     }
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+
+                // Restart Quick Button
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xCC0F172A))
+                        .border(1.5.dp, Color(0xFFF59E0B), CircleShape)
+                        .clickable { onRestartClick() }
+                        .testTag("restart_button"),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Restart",
+                        tint = Color(0xFFFFD54F),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
 
                 // Pause Button
                 Box(
@@ -210,7 +241,7 @@ fun GameHud(
                         .size(38.dp)
                         .clip(CircleShape)
                         .background(Color(0xCC0F172A))
-                        .border(1.5.dp, Color(0xFF94A3B8), CircleShape)
+                        .border(1.5.dp, Color(0xFF38BDF8), CircleShape)
                         .clickable { onPauseClick() }
                         .testTag("pause_button"),
                     contentAlignment = Alignment.Center

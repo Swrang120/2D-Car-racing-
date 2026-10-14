@@ -88,7 +88,7 @@ class GameRepository(context: Context) {
                 UpgradeType.ENGINE -> prefs.edit().putInt("upgrade_${vehicle.name}_engine", current.engineLevel + 1).apply()
                 UpgradeType.SUSPENSION -> prefs.edit().putInt("upgrade_${vehicle.name}_suspension", current.suspensionLevel + 1).apply()
                 UpgradeType.TIRES -> prefs.edit().putInt("upgrade_${vehicle.name}_tires", current.tiresLevel + 1).apply()
-                UpgradeType.FUEL_TANK -> prefs.edit().putInt("upgrade_${vehicle.name}_fuel", current.fuelLevel + 1).apply()
+                UpgradeType.FUEL_TANK, UpgradeType.FUEL_4WD -> prefs.edit().putInt("upgrade_${vehicle.name}_fuel", current.fuelLevel + 1).apply()
             }
             return true
         }
@@ -112,6 +112,10 @@ class GameRepository(context: Context) {
         return prefs.getInt("best_distance_lvl_$level", 0)
     }
 
+    fun getBestDistance(stage: EnvironmentType): Int {
+        return prefs.getInt("best_distance_stage_${stage.name}", prefs.getInt("best_distance_lvl_${stage.ordinal + 1}", 0))
+    }
+
     fun updateBestDistance(level: Int, distance: Int): Boolean {
         val currentBest = getBestDistance(level)
         if (distance > currentBest) {
@@ -121,14 +125,25 @@ class GameRepository(context: Context) {
         return false
     }
 
+    fun updateBestDistance(stage: EnvironmentType, distance: Int): Boolean {
+        val currentBest = getBestDistance(stage)
+        if (distance > currentBest) {
+            prefs.edit().putInt("best_distance_stage_${stage.name}", distance).apply()
+            return true
+        }
+        return false
+    }
+
     fun getLevelConfig(level: Int): LevelInfo {
-        val env = when (((level - 1) / 10) % 4) {
+        val env = when (((level - 1) / 5) % 6) {
             0 -> EnvironmentType.COUNTRYSIDE
             1 -> EnvironmentType.DESERT
             2 -> EnvironmentType.ARCTIC
-            else -> EnvironmentType.MOON
+            3 -> EnvironmentType.MOON
+            4 -> EnvironmentType.CAVE
+            else -> EnvironmentType.HIGHWAY
         }
-        val length = 600 + (level - 1) * 35 // from 600m up to 4000+m
+        val length = 1000 + (level - 1) * 200
         val steepness = 0.85f + (level.toFloat() / 100f) * 0.75f
         val gapFreq = if (level > 2) (0.4f + (level.toFloat() / 100f) * 0.8f).coerceAtMost(1.5f) else 0f
         val targetCoins = (length / 8).coerceAtLeast(30)
@@ -138,7 +153,7 @@ class GameRepository(context: Context) {
             environment = env,
             lengthMeters = length,
             targetCoins = targetCoins,
-            steepnessFactor = steepness,
+            steepnessMultiplier = steepness,
             gapFrequency = gapFreq
         )
     }

@@ -117,6 +117,12 @@ fun GameScreen(
                         }
                         true
                     }
+                    KeyEvent.KEYCODE_R -> {
+                        if (isDown) {
+                            viewModel.restartRace()
+                        }
+                        true
+                    }
                     else -> false
                 }
             },
@@ -132,6 +138,7 @@ fun GameScreen(
                 )
 
                 // 2. Heads-Up Display (Top)
+                val nextGate = engine.finishGates.firstOrNull { !it.isCrossed }
                 GameHud(
                     distanceMeters = engine.distanceMeters,
                     bestDistanceMeters = viewModel.repository.getBestDistance(engine.stage),
@@ -142,7 +149,10 @@ fun GameScreen(
                     totalCoinsBank = totalCoins,
                     airtimeSeconds = engine.airtimeSeconds,
                     isAirborne = engine.isAirborne,
-                    onPauseClick = { viewModel.pauseGame() }
+                    currentLevelNumber = engine.currentLevelNumber,
+                    nextFinishDistance = nextGate?.distanceMeters ?: (engine.distanceMeters + 250),
+                    onPauseClick = { viewModel.pauseGame() },
+                    onRestartClick = { viewModel.restartRace() }
                 )
 
                 // 3. Bottom Racing Control Cockpit: BRAKE Pedal, RPM Dial, SPEED Dial, GAS Pedal

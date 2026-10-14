@@ -1,22 +1,36 @@
 package com.example.ui.components
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.PaintingStyle
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.nativeCanvas
 import com.example.model.CoinItem
 import com.example.model.EnvironmentType
+import com.example.model.FinishGate
 import com.example.model.FloatingNotification
 import com.example.model.FuelCanItem
 import com.example.model.ObstacleItem
@@ -42,13 +56,13 @@ fun GameCanvas(
         val cameraOffsetY = screenH * 0.62f - engine.chassisY
 
         // 1. Draw Environment Sky & Parallax Backdrops
-        drawEnvironmentBackground(engine.levelInfo.environment, cameraOffsetX, cameraOffsetY, screenW, screenH)
+        drawEnvironmentBackground(engine.stage, cameraOffsetX, cameraOffsetY, screenW, screenH)
 
         // 2. Draw Terrain & Bridges
         drawTerrain(engine, cameraOffsetX, cameraOffsetY, screenW, screenH)
 
-        // 3. Draw Finish Line Banner
-        drawFinishLine(engine.trackEndWorldX, engine, cameraOffsetX, cameraOffsetY)
+        // 3. Draw Level Finish Line Gates
+        drawFinishGates(engine.finishGates, engine, cameraOffsetX, cameraOffsetY)
 
         // 4. Draw Obstacles (Crates/Barrels)
         drawObstacles(engine.obstacles, cameraOffsetX, cameraOffsetY)
@@ -59,11 +73,142 @@ fun GameCanvas(
         // 6. Draw Vehicle (Suspension, Wheels, Chassis, Driver, Exhaust)
         drawVehicle(engine, cameraOffsetX, cameraOffsetY)
 
-        // 7. Draw Particles (Tire dirt, explosion sparks)
+        // 7. Draw Particles (Tire dirt, explosion sparks, finish confetti)
         drawParticles(engine.particles, cameraOffsetX, cameraOffsetY)
 
-        // 8. Draw Floating Notifications ("+50", "AIRTIME", etc.)
+        // 8. Draw Floating Notifications ("+50", "AIRTIME", "LEVEL 1 COMPLETE", etc.)
         drawFloatingNotifications(engine.floatingTexts, cameraOffsetX, cameraOffsetY)
+    }
+}
+
+/**
+ * High-quality interactive Vehicle Showcase Canvas for Garage / Home Page.
+ * Displays vehicle on glowing futuristic turntable pedestal with environment lighting and animated wheels/exhaust.
+ */
+@Composable
+fun VehicleShowcaseCanvas(
+    vehicle: VehicleType,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "showcase")
+    val bobbing by infiniteTransition.animateFloat(
+        initialValue = -3f,
+        targetValue = 3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "bobbing"
+    )
+    val glowPulse by infiniteTransition.animateFloat(
+        initialValue = 0.5f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glow"
+    )
+
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val centerX = w * 0.5f
+        val pedestalY = h * 0.72f
+
+        // 1. Glowing Pedestal Platform
+        val pedestalWidth = w * 0.82f
+        val pedestalHeight = 22f
+
+        // Radial glow under platform
+        drawOval(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    vehicle.primaryColor.copy(alpha = 0.35f * glowPulse),
+                    Color.Transparent
+                ),
+                center = Offset(centerX, pedestalY + 6f),
+                radius = pedestalWidth * 0.65f
+            ),
+            topLeft = Offset(centerX - pedestalWidth * 0.65f, pedestalY - 20f),
+            size = Size(pedestalWidth * 1.3f, 55f)
+        )
+
+        // Platform Base (Metallic)
+        drawRoundRect(
+            brush = Brush.verticalGradient(
+                listOf(Color(0xFF334155), Color(0xFF1E293B), Color(0xFF0F172A))
+            ),
+            topLeft = Offset(centerX - pedestalWidth * 0.5f, pedestalY),
+            size = Size(pedestalWidth, pedestalHeight),
+            cornerRadius = CornerRadius(10f, 10f)
+        )
+
+        // Neon Edge on platform
+        drawRoundRect(
+            brush = Brush.horizontalGradient(
+                listOf(vehicle.primaryColor, vehicle.secondaryColor, vehicle.primaryColor)
+            ),
+            topLeft = Offset(centerX - pedestalWidth * 0.5f, pedestalY),
+            size = Size(pedestalWidth, 4f),
+            cornerRadius = CornerRadius(2f, 2f)
+        )
+
+        // 2. Render Vehicle Centered on Pedestal
+        val halfBase = if (vehicle.isOneWheeler) 0f else vehicle.wheelBase * 0.5f
+        val rearWheelY = pedestalY - vehicle.wheelRadius + 2f
+        val frontWheelY = pedestalY - vehicle.frontWheelRadius + 2f
+        val chassisY = pedestalY - vehicle.wheelRadius - vehicle.suspensionLength + bobbing
+
+        val rearWheelX = centerX - halfBase
+        val frontWheelX = centerX + halfBase
+
+        // Shadow under wheels
+        drawOval(
+            color = Color(0x66000000),
+            topLeft = Offset(rearWheelX - vehicle.wheelRadius * 0.9f, pedestalY - 2f),
+            size = Size(vehicle.wheelRadius * 1.8f, 7f)
+        )
+        if (!vehicle.isOneWheeler) {
+            drawOval(
+                color = Color(0x66000000),
+                topLeft = Offset(frontWheelX - vehicle.frontWheelRadius * 0.9f, pedestalY - 2f),
+                size = Size(vehicle.frontWheelRadius * 1.8f, 7f)
+            )
+        }
+
+        // Suspension Coils
+        drawSuspensionCoil(rearWheelX, chassisY + 8f, rearWheelX, rearWheelY)
+        if (!vehicle.isOneWheeler) {
+            drawSuspensionCoil(frontWheelX, chassisY + 8f, frontWheelX, frontWheelY)
+        }
+
+        // Wheels
+        drawWheel(rearWheelX, rearWheelY, vehicle.wheelRadius, 0f)
+        if (!vehicle.isOneWheeler) {
+            drawWheel(frontWheelX, frontWheelY, vehicle.frontWheelRadius, 0f)
+        }
+
+        // Chassis
+        drawVehicleChassisByType(vehicle, centerX, chassisY, false)
+
+        // Headlight glow cone
+        val hlX = centerX + halfBase + 28f
+        val hlY = chassisY + 4f
+        val beamPath = Path().apply {
+            moveTo(hlX, hlY)
+            lineTo(hlX + 75f, hlY - 14f)
+            lineTo(hlX + 75f, hlY + 24f)
+            close()
+        }
+        drawPath(
+            beamPath,
+            brush = Brush.horizontalGradient(
+                listOf(Color(0x55FFF59D), Color(0x00FFF59D)),
+                startX = hlX,
+                endX = hlX + 75f
+            )
+        )
     }
 }
 
@@ -93,7 +238,7 @@ private fun DrawScope.drawEnvironmentBackground(
                 radius = 38f,
                 center = Offset(w * 0.82f, h * 0.18f)
             )
-            // Parallax Mountain range (0.08x scroll)
+            // Parallax Mountains (0.08x scroll)
             val pX = (camX * 0.08f) % 400f
             val mountainPath = Path().apply {
                 moveTo(-200f, h)
@@ -108,7 +253,7 @@ private fun DrawScope.drawEnvironmentBackground(
             }
             drawPath(mountainPath, color = Color(0xFFB0BEC5).copy(alpha = 0.45f))
 
-            // Parallax Midground rolling green hills (0.22x scroll)
+            // Parallax Midground Green Hills (0.22x scroll)
             val hillPX = (camX * 0.22f) % 360f
             val hillPath = Path().apply {
                 moveTo(-100f, h)
@@ -120,68 +265,110 @@ private fun DrawScope.drawEnvironmentBackground(
                 lineTo(w + 200f, h)
                 close()
             }
-            drawPath(hillPath, color = Color(0xFF81C784).copy(alpha = 0.6f))
+            drawPath(hillPath, color = Color(0xFF81C784).copy(alpha = 0.55f))
         }
 
         EnvironmentType.DESERT -> {
-            // Bright Desert Sun
+            // Scorching Desert Sun
             drawCircle(
-                color = Color(0xFFFFD54F),
-                radius = 45f,
-                center = Offset(w * 0.78f, h * 0.16f)
+                color = Color(0xFFFFCC80),
+                radius = 50f,
+                center = Offset(w * 0.22f, h * 0.20f)
             )
-            // Distant Pyramids & Dunes (0.12x scroll)
-            val pyrX = (camX * 0.12f) % 500f
-            val pyrPath = Path().apply {
-                moveTo(-100f, h)
-                var px = -100f + pyrX
-                while (px < w + 250f) {
-                    lineTo(px + 100f, h * 0.46f)
-                    lineTo(px + 200f, h * 0.72f)
-                    px += 280f
-                }
-                lineTo(w + 250f, h)
-                close()
-            }
-            drawPath(pyrPath, color = Color(0xFFFFB74D).copy(alpha = 0.45f))
-        }
-
-        EnvironmentType.ARCTIC -> {
-            // Distant Icy Peaks (0.1x scroll)
-            val iceX = (camX * 0.1f) % 450f
-            val icePath = Path().apply {
+            // Distant Pyramids & Dunes (0.10x scroll)
+            val pX = (camX * 0.10f) % 450f
+            val pyramidPath = Path().apply {
                 moveTo(-150f, h)
-                var ix = -150f + iceX
-                while (ix < w + 300f) {
-                    lineTo(ix + 140f, h * 0.40f)
-                    lineTo(ix + 280f, h * 0.68f)
-                    ix += 280f
+                var px = -150f + pX
+                while (px < w + 300f) {
+                    lineTo(px + 140f, h * 0.48f)
+                    lineTo(px + 280f, h)
+                    px += 280f
                 }
                 lineTo(w + 300f, h)
                 close()
             }
-            drawPath(icePath, color = Color(0xFFB2EBF2).copy(alpha = 0.5f))
+            drawPath(pyramidPath, color = Color(0xFFFFB74D).copy(alpha = 0.40f))
+        }
+
+        EnvironmentType.ARCTIC -> {
+            // Ice Mountains
+            val pX = (camX * 0.12f) % 380f
+            val icePath = Path().apply {
+                moveTo(-150f, h)
+                var ix = -150f + pX
+                while (ix < w + 300f) {
+                    lineTo(ix + 110f, h * 0.40f)
+                    lineTo(ix + 220f, h * 0.65f)
+                    ix += 220f
+                }
+                lineTo(w + 300f, h)
+                close()
+            }
+            drawPath(icePath, color = Color(0xFFB2EBF2).copy(alpha = 0.60f))
         }
 
         EnvironmentType.MOON -> {
-            // Distant Earth in black sky
+            // Giant Earth in sky
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFF29B6F6), Color(0xFF1565C0), Color(0xFF0D47A1)),
-                    center = Offset(w * 0.82f, h * 0.22f),
-                    radius = 36f
+                    colors = listOf(Color(0xFF64B5F6), Color(0xFF1E88E5), Color(0xFF0D47A1)),
+                    center = Offset(w * 0.78f, h * 0.24f),
+                    radius = 48f
                 ),
-                radius = 36f,
-                center = Offset(w * 0.82f, h * 0.22f)
+                radius = 48f,
+                center = Offset(w * 0.78f, h * 0.24f)
             )
-            // Twinkling stars
-            val starRand = kotlin.random.Random(42)
-            for (i in 0 until 40) {
-                val sx = starRand.nextFloat() * w
-                val sy = starRand.nextFloat() * (h * 0.5f)
-                val sr = starRand.nextFloat() * 2f + 1f
-                drawCircle(color = Color.White.copy(alpha = 0.85f), radius = sr, center = Offset(sx, sy))
+            // Moon crater rims
+            val pX = (camX * 0.08f) % 350f
+            val craterPath = Path().apply {
+                moveTo(-100f, h)
+                var cx = -100f + pX
+                while (cx < w + 200f) {
+                    quadraticBezierTo(cx + 80f, h * 0.50f, cx + 160f, h * 0.68f)
+                    cx += 160f
+                }
+                lineTo(w + 200f, h)
+                close()
             }
+            drawPath(craterPath, color = Color(0xFF546E7A).copy(alpha = 0.50f))
+        }
+
+        EnvironmentType.CAVE -> {
+            // Stalactites hanging from ceiling
+            val pX = (camX * 0.25f) % 250f
+            val roofPath = Path().apply {
+                moveTo(-50f, 0f)
+                var rx = -50f + pX
+                while (rx < w + 150f) {
+                    lineTo(rx + 40f, 65f)
+                    lineTo(rx + 80f, 0f)
+                    rx += 80f
+                }
+                close()
+            }
+            drawPath(roofPath, color = Color(0xFF311B92).copy(alpha = 0.70f))
+        }
+
+        EnvironmentType.HIGHWAY -> {
+            // Distant City Skyline
+            val pX = (camX * 0.10f) % 300f
+            val bldgPath = Path().apply {
+                moveTo(-100f, h)
+                var bx = -100f + pX
+                while (bx < w + 200f) {
+                    lineTo(bx, h * 0.44f)
+                    lineTo(bx + 40f, h * 0.44f)
+                    lineTo(bx + 40f, h * 0.36f)
+                    lineTo(bx + 75f, h * 0.36f)
+                    lineTo(bx + 75f, h * 0.52f)
+                    lineTo(bx + 110f, h * 0.52f)
+                    lineTo(bx + 110f, h)
+                    bx += 110f
+                }
+                close()
+            }
+            drawPath(bldgPath, color = Color(0xFF455A64).copy(alpha = 0.45f))
         }
     }
 }
@@ -193,183 +380,300 @@ private fun DrawScope.drawTerrain(
     w: Float,
     h: Float
 ) {
-    val step = 14f
-    val startWorldX = (-camX - 60f).coerceAtLeast(-100f)
-    val endWorldX = (-camX + w + 60f)
+    val stepPx = 18f
+    val startWorldX = -camX - 60f
+    val endWorldX = -camX + w + 80f
 
-    // Build the terrain polygon: top surface points down to bottom of screen
     val terrainPath = Path()
-    var firstPoint = true
-    var currentX = startWorldX
+    val topStripePath = Path()
 
-    while (currentX <= endWorldX) {
-        val groundY = engine.getTerrainElevation(currentX)
-        val screenX = currentX + camX
+    var worldX = startWorldX
+    var firstPoint = true
+
+    while (worldX <= endWorldX) {
+        val groundY = engine.getTerrainElevation(worldX)
+        val screenX = worldX + camX
         val screenY = groundY + camY
 
         if (firstPoint) {
             terrainPath.moveTo(screenX, screenY)
+            topStripePath.moveTo(screenX, screenY)
             firstPoint = false
         } else {
             terrainPath.lineTo(screenX, screenY)
+            topStripePath.lineTo(screenX, screenY)
         }
-        currentX += step
+        worldX += stepPx
     }
 
-    // Seal the polygon at the screen bottom
-    terrainPath.lineTo(w + 100f, h + 300f)
-    terrainPath.lineTo(-100f, h + 300f)
+    // Close bottom of terrain to screen bottom
+    terrainPath.lineTo(endWorldX + camX, h + 100f)
+    terrainPath.lineTo(startWorldX + camX, h + 100f)
     terrainPath.close()
 
-    // 1. Subsurface Earth
+    // 1. Draw Subsurface Deep Earth Fill
     drawPath(
-        path = terrainPath,
-        color = engine.levelInfo.environment.hillSubsurfaceColor
+        terrainPath,
+        brush = Brush.verticalGradient(
+            colors = listOf(engine.stage.hillSubsurfaceColor, Color(0xFF1E1A17)),
+            startY = camY + engine.baseGroundY - 60f,
+            endY = h
+        )
     )
 
-    // 2. Subsurface Texture Strata (decorative wavy layers beneath dirt)
-    val strataY = h * 0.72f
-    drawLine(
-        color = Color.Black.copy(alpha = 0.12f),
-        start = Offset(0f, strataY),
-        end = Offset(w, strataY),
-        strokeWidth = 14f
+    // 2. Draw Top Surface Grass / Soil Stripe (14px thickness)
+    drawPath(
+        topStripePath,
+        color = engine.stage.hillSurfaceColor,
+        style = Stroke(width = 14f, cap = StrokeCap.Round, join = StrokeJoin.Round)
     )
 
-    // 3. Top Grass / Surface Trim
-    val surfaceStrokePath = Path()
-    firstPoint = true
-    currentX = startWorldX
-    while (currentX <= endWorldX) {
-        val groundY = engine.getTerrainElevation(currentX)
-        val screenX = currentX + camX
-        val screenY = groundY + camY
-
-        if (firstPoint) {
-            surfaceStrokePath.moveTo(screenX, screenY)
-            firstPoint = false
-        } else {
-            surfaceStrokePath.lineTo(screenX, screenY)
-        }
-        currentX += step
+    // 3. Draw Starting Runway 50m marker line
+    val spawnRunwaySX = engine.flatSpawnRunwayLength + camX
+    val spawnRunwaySY = engine.baseGroundY + camY
+    if (spawnRunwaySX in -50f..w + 50f) {
+        drawLine(
+            color = Color(0xFFFBBF24),
+            start = Offset(spawnRunwaySX, spawnRunwaySY - 35f),
+            end = Offset(spawnRunwaySX, spawnRunwaySY + 2f),
+            strokeWidth = 4f
+        )
     }
 
-    drawPath(
-        path = surfaceStrokePath,
-        color = engine.levelInfo.environment.hillSurfaceColor,
-        style = Stroke(width = 10f, cap = StrokeCap.Round)
-    )
-
-    // 4. Draw Wooden Bridges (if in visible view)
+    // 4. Draw Bridges
     for (bridge in engine.bridges) {
         val bStartX = bridge.first + camX
         val bEndX = bridge.second + camX
-        if (bEndX >= -50f && bStartX <= w + 50f) {
+        if (bEndX >= 0f && bStartX <= w) {
             drawSuspensionBridge(bridge.first, bridge.second, engine, camX, camY)
         }
     }
 }
 
 private fun DrawScope.drawSuspensionBridge(
-    startX: Float,
-    endX: Float,
+    bStartWorldX: Float,
+    bEndWorldX: Float,
     engine: PhysicsEngine,
     camX: Float,
     camY: Float
 ) {
-    val plankStep = 18f
-    var px = startX
-    while (px < endX) {
-        val y = engine.getTerrainElevation(px)
-        val screenX = px + camX
-        val screenY = y + camY
+    val startSX = bStartWorldX + camX
+    val endSX = bEndWorldX + camX
+    val p1Y = engine.getTerrainElevation(bStartWorldX) + camY
+    val p2Y = engine.getTerrainElevation(bEndWorldX) + camY
 
-        // Wooden plank
+    // Bridge Pylons (Wooden/Steel posts at both edges)
+    drawRect(
+        color = Color(0xFF5D4037),
+        topLeft = Offset(startSX - 8f, p1Y - 45f),
+        size = Size(16f, 50f)
+    )
+    drawRect(
+        color = Color(0xFF5D4037),
+        topLeft = Offset(endSX - 8f, p2Y - 45f),
+        size = Size(16f, 50f)
+    )
+
+    // Main Suspension Cable
+    val cablePath = Path().apply {
+        moveTo(startSX, p1Y - 45f)
+        val midSX = (startSX + endSX) * 0.5f
+        val midSY = (p1Y + p2Y) * 0.5f - 10f
+        quadraticBezierTo(midSX, midSY, endSX, p2Y - 45f)
+    }
+    drawPath(cablePath, color = Color(0xFFD7CCC8), style = Stroke(width = 3f))
+
+    // Wooden Bridge Planks
+    val steps = 14
+    for (i in 0..steps) {
+        val t = i.toFloat() / steps
+        val wx = bStartWorldX + (bEndWorldX - bStartWorldX) * t
+        val wy = engine.getTerrainElevation(wx)
+        val sx = wx + camX
+        val sy = wy + camY
+
+        // Vertical suspension wire
+        val topCableY = (p1Y - 45f) * (1f - t) + (p2Y - 45f) * t - sin(t * PI.toFloat()) * 35f
+        drawLine(
+            color = Color(0x88FFFFFF),
+            start = Offset(sx, topCableY),
+            end = Offset(sx, sy),
+            strokeWidth = 1.5f
+        )
+
+        // Wooden Plank
         drawRoundRect(
             color = Color(0xFF8D6E63),
-            topLeft = Offset(screenX - 7f, screenY - 4f),
+            topLeft = Offset(sx - 7f, sy - 4f),
             size = Size(14f, 8f),
             cornerRadius = CornerRadius(2f, 2f)
         )
-        // Plank bolt dots
-        drawCircle(
-            color = Color(0xFF3E2723),
-            radius = 1.2f,
-            center = Offset(screenX - 4f, screenY)
-        )
-        drawCircle(
-            color = Color(0xFF3E2723),
-            radius = 1.2f,
-            center = Offset(screenX + 4f, screenY)
-        )
-        px += plankStep
     }
-
-    // Suspension bridge cable
-    val y1 = engine.getTerrainElevation(startX) + camY
-    val y2 = engine.getTerrainElevation(endX) + camY
-    val midX = (startX + endX) / 2f + camX
-    val midY = engine.getTerrainElevation((startX + endX) / 2f) + camY - 20f
-
-    val cablePath = Path().apply {
-        moveTo(startX + camX, y1 - 25f)
-        quadraticBezierTo(midX, midY, endX + camX, y2 - 25f)
-    }
-    drawPath(cablePath, color = Color(0xFFB0BEC5), style = Stroke(width = 2.5f))
 }
 
-private fun DrawScope.drawFinishLine(
-    finishX: Float,
+private fun DrawScope.drawFinishGates(
+    gates: List<FinishGate>,
     engine: PhysicsEngine,
     camX: Float,
     camY: Float
 ) {
-    val screenX = finishX + camX
-    val groundY = engine.getTerrainElevation(finishX) + camY
+    for (gate in gates) {
+        val gateSX = gate.worldX + camX
+        if (gateSX < -120f || gateSX > size.width + 120f) continue
 
-    // Flag pole
-    drawLine(
-        color = Color(0xFFECEFF1),
-        start = Offset(screenX, groundY),
-        end = Offset(screenX, groundY - 110f),
-        strokeWidth = 5f,
-        cap = StrokeCap.Round
-    )
+        val groundY = engine.getTerrainElevation(gate.worldX) + camY
+        val archH = 130f
+        val archW = 44f
 
-    // Checkered Flag
-    val flagW = 44f
-    val flagH = 28f
-    val flagTop = groundY - 110f
-    drawRect(
-        color = Color.White,
-        topLeft = Offset(screenX, flagTop),
-        size = Size(flagW, flagH)
-    )
-    // Checkered pattern
-    val rows = 3
-    val cols = 4
-    val cw = flagW / cols
-    val ch = flagH / rows
-    for (r in 0 until rows) {
-        for (c in 0 until cols) {
-            if ((r + c) % 2 == 0) {
-                drawRect(
-                    color = Color.Black,
-                    topLeft = Offset(screenX + c * cw, flagTop + r * ch),
-                    size = Size(cw, ch)
-                )
+        // Checkered Arch Posts
+        val postLeft = gateSX - archW * 0.5f
+        val postRight = gateSX + archW * 0.5f
+
+        // Left Pole
+        drawCheckeredPole(postLeft, groundY - archH, 12f, archH)
+        // Right Pole
+        drawCheckeredPole(postRight, groundY - archH, 12f, archH)
+
+        // Overhead Banner Board
+        val bannerTop = groundY - archH
+        val bannerHeight = 36f
+        val bannerWidth = archW + 60f
+        val bannerLeft = gateSX - bannerWidth * 0.5f
+
+        drawRoundRect(
+            brush = Brush.horizontalGradient(
+                listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF0F172A))
+            ),
+            topLeft = Offset(bannerLeft, bannerTop),
+            size = Size(bannerWidth, bannerHeight),
+            cornerRadius = CornerRadius(6f, 6f)
+        )
+        drawRoundRect(
+            color = if (gate.isCrossed) Color(0xFF10B981) else Color(0xFFFFD700),
+            topLeft = Offset(bannerLeft, bannerTop),
+            size = Size(bannerWidth, bannerHeight),
+            cornerRadius = CornerRadius(6f, 6f),
+            style = Stroke(width = 2.5f)
+        )
+
+        // Checkerboard striping across top of banner
+        val checks = 8
+        val checkW = bannerWidth / checks
+        for (c in 0 until checks) {
+            val checkColor = if (c % 2 == 0) Color.White else Color.Black
+            drawRect(
+                color = checkColor,
+                topLeft = Offset(bannerLeft + c * checkW, bannerTop + 2f),
+                size = Size(checkW, 7f)
+            )
+        }
+
+        // Native canvas text for crisp readability
+        val bannerPaint = android.graphics.Paint().apply {
+            color = if (gate.isCrossed) android.graphics.Color.GREEN else android.graphics.Color.YELLOW
+            textSize = 20f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            textAlign = android.graphics.Paint.Align.CENTER
+        }
+        val gateText = if (gate.isCrossed) "★ COMPLETED ★" else "★ LEVEL ${gate.levelNumber} FINISH ★"
+        drawContext.canvas.nativeCanvas.drawText(
+            gateText,
+            gateSX,
+            bannerTop + 26f,
+            bannerPaint
+        )
+
+        // Road Finish Line (Checkered pattern on ground)
+        val groundStripes = 6
+        for (s in 0 until groundStripes) {
+            val color = if (s % 2 == 0) Color.White else Color(0xFF1E293B)
+            drawRect(
+                color = color,
+                topLeft = Offset(gateSX - 15f + s * 5f, groundY - 3f),
+                size = Size(5f, 6f)
+            )
+        }
+    }
+}
+
+private fun DrawScope.drawCheckeredPole(x: Float, y: Float, w: Float, h: Float) {
+    val segments = 9
+    val segH = h / segments
+    for (i in 0 until segments) {
+        val color = if (i % 2 == 0) Color(0xFFD32F2F) else Color.White
+        drawRect(
+            color = color,
+            topLeft = Offset(x, y + i * segH),
+            size = Size(w, segH)
+        )
+    }
+}
+
+private fun DrawScope.drawObstacles(
+    obstacles: List<ObstacleItem>,
+    camX: Float,
+    camY: Float
+) {
+    for (obs in obstacles) {
+        if (obs.isDestroyed) continue
+
+        val sx = obs.x + camX
+        val sy = obs.y + camY
+
+        if (sx < -50f || sx > size.width + 50f) continue
+
+        rotate(degrees = obs.angle * 180f / PI.toFloat(), pivot = Offset(sx, sy)) {
+            when (obs.type) {
+                ObstacleType.WOOD_CRATE -> {
+                    // Wooden Crate
+                    drawRoundRect(
+                        color = Color(0xFF8D6E63),
+                        topLeft = Offset(sx - obs.width * 0.5f, sy - obs.height * 0.5f),
+                        size = Size(obs.width, obs.height),
+                        cornerRadius = CornerRadius(3f, 3f)
+                    )
+                    drawRoundRect(
+                        color = Color(0xFF4E342E),
+                        topLeft = Offset(sx - obs.width * 0.5f, sy - obs.height * 0.5f),
+                        size = Size(obs.width, obs.height),
+                        cornerRadius = CornerRadius(3f, 3f),
+                        style = Stroke(width = 2f)
+                    )
+                    // X cross on crate
+                    drawLine(
+                        color = Color(0xFF4E342E),
+                        start = Offset(sx - obs.width * 0.5f, sy - obs.height * 0.5f),
+                        end = Offset(sx + obs.width * 0.5f, sy + obs.height * 0.5f),
+                        strokeWidth = 2f
+                    )
+                    drawLine(
+                        color = Color(0xFF4E342E),
+                        start = Offset(sx + obs.width * 0.5f, sy - obs.height * 0.5f),
+                        end = Offset(sx - obs.width * 0.5f, sy + obs.height * 0.5f),
+                        strokeWidth = 2f
+                    )
+                }
+
+                ObstacleType.OIL_BARREL -> {
+                    // Red Hazard Oil Barrel
+                    drawRoundRect(
+                        brush = Brush.horizontalGradient(
+                            listOf(Color(0xFFB71C1C), Color(0xFFE53935), Color(0xFFB71C1C))
+                        ),
+                        topLeft = Offset(sx - obs.width * 0.5f, sy - obs.height * 0.5f),
+                        size = Size(obs.width, obs.height),
+                        cornerRadius = CornerRadius(4f, 4f)
+                    )
+                    // Yellow Hazard Stripe
+                    drawRect(
+                        color = Color(0xFFFFD600),
+                        topLeft = Offset(sx - obs.width * 0.5f, sy - 3f),
+                        size = Size(obs.width, 6f)
+                    )
+                }
             }
         }
     }
-
-    // FINISH text
-    val paint = android.graphics.Paint().apply {
-        color = android.graphics.Color.WHITE
-        textSize = 24f
-        isFakeBoldText = true
-        setShadowLayer(4f, 0f, 2f, android.graphics.Color.BLACK)
-    }
-    drawContext.canvas.nativeCanvas.drawText("FINISH", screenX - 18f, flagTop - 10f, paint)
 }
 
 private fun DrawScope.drawCollectibles(
@@ -380,154 +684,99 @@ private fun DrawScope.drawCollectibles(
 ) {
     // 1. Coins
     for (coin in coins) {
-        if (!coin.collected) {
-            val sx = coin.x + camX
-            val sy = coin.y + camY
+        if (coin.collected) continue
+        val sx = coin.x + camX
+        val sy = coin.y + camY
+        if (sx < -30f || sx > size.width + 30f) continue
 
-            // Outer gold coin rim
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(Color(0xFFFFEA00), Color(0xFFFFB300), Color(0xFFFF8F00)),
-                    center = Offset(sx, sy),
-                    radius = 16f
-                ),
-                radius = 16f,
-                center = Offset(sx, sy)
-            )
-            // Inner coin ring
-            drawCircle(
-                color = Color(0xFFFFE082),
-                radius = 12f,
-                center = Offset(sx, sy),
-                style = Stroke(width = 1.5f)
-            )
-
-            // Coin Value number
-            val paint = android.graphics.Paint().apply {
-                color = android.graphics.Color.parseColor("#4E342E")
-                textSize = if (coin.value >= 100) 14f else 16f
-                textAlign = android.graphics.Paint.Align.CENTER
-                isFakeBoldText = true
-            }
-            drawContext.canvas.nativeCanvas.drawText(
-                "${coin.value}",
-                sx,
-                sy + 5f,
-                paint
-            )
+        val coinRadius = when (coin.value) {
+            500 -> 16f
+            100 -> 14f
+            else -> 12f
         }
+
+        val baseColor = when (coin.value) {
+            500 -> Color(0xFFFFD700) // Gold
+            100 -> Color(0xFF00E5FF) // Diamond Cyan
+            50 -> Color(0xFF10B981) // Emerald Green
+            10 -> Color(0xFFB0BEC5) // Silver
+            else -> Color(0xFFFFB300) // Bronze Amber
+        }
+
+        // Outer Glow
+        drawCircle(
+            color = baseColor.copy(alpha = 0.35f),
+            radius = coinRadius + 4f,
+            center = Offset(sx, sy)
+        )
+        // Coin Face
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(Color.White, baseColor, baseColor.copy(alpha = 0.85f)),
+                center = Offset(sx - 3f, sy - 3f),
+                radius = coinRadius
+            ),
+            radius = coinRadius,
+            center = Offset(sx, sy)
+        )
+        // Coin Rim
+        drawCircle(
+            color = Color(0x88000000),
+            radius = coinRadius - 2f,
+            center = Offset(sx, sy),
+            style = Stroke(width = 1.5f)
+        )
+
+        // Inner value symbol
+        val coinPaint = android.graphics.Paint().apply {
+            color = android.graphics.Color.WHITE
+            textSize = if (coin.value >= 100) 10f else 12f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            textAlign = android.graphics.Paint.Align.CENTER
+        }
+        drawContext.canvas.nativeCanvas.drawText(
+            coin.value.toString(),
+            sx,
+            sy + 4f,
+            coinPaint
+        )
     }
 
-    // 2. Red Fuel Cans
-    for (can in fuelCans) {
-        if (!can.collected) {
-            val sx = can.x + camX
-            val sy = can.y + camY
+    // 2. Red Fuel Jerrycans
+    for (fuel in fuelCans) {
+        if (fuel.collected) continue
+        val sx = fuel.x + camX
+        val sy = fuel.y + camY
+        if (sx < -30f || sx > size.width + 30f) continue
 
-            // Jerrycan main red body
-            drawRoundRect(
-                brush = Brush.verticalGradient(listOf(Color(0xFFFF1744), Color(0xFFD50000))),
-                topLeft = Offset(sx - 14f, sy - 18f),
-                size = Size(28f, 36f),
-                cornerRadius = CornerRadius(5f, 5f)
-            )
-            // Handle on top
-            drawRoundRect(
-                color = Color(0xFFB71C1C),
-                topLeft = Offset(sx - 8f, sy - 24f),
-                size = Size(16f, 6f),
-                cornerRadius = CornerRadius(2f, 2f)
-            )
-            // Spout
-            drawLine(
-                color = Color(0xFFFF5252),
-                start = Offset(sx + 6f, sy - 20f),
-                end = Offset(sx + 12f, sy - 26f),
-                strokeWidth = 3f,
-                cap = StrokeCap.Round
-            )
-            // Fuel drop / Flame icon on can
-            drawCircle(
-                color = Color.White.copy(alpha = 0.9f),
-                radius = 4.5f,
-                center = Offset(sx, sy)
-            )
-            val paint = android.graphics.Paint().apply {
-                color = android.graphics.Color.WHITE
-                textSize = 10f
-                textAlign = android.graphics.Paint.Align.CENTER
-                isFakeBoldText = true
-            }
-            drawContext.canvas.nativeCanvas.drawText("GAS", sx, sy + 12f, paint)
+        // Fuel Can Body
+        drawRoundRect(
+            brush = Brush.verticalGradient(listOf(Color(0xFFEF4444), Color(0xFFB91C1C))),
+            topLeft = Offset(sx - 12f, sy - 14f),
+            size = Size(24f, 28f),
+            cornerRadius = CornerRadius(4f, 4f)
+        )
+        // Handle on top
+        drawRoundRect(
+            color = Color(0xFF7F1D1D),
+            topLeft = Offset(sx - 8f, sy - 20f),
+            size = Size(16f, 6f),
+            cornerRadius = CornerRadius(2f, 2f)
+        )
+        // Spout
+        drawRect(
+            color = Color(0xFFFBBF24),
+            topLeft = Offset(sx + 5f, sy - 21f),
+            size = Size(5f, 4f)
+        )
+        // White "GAS" label
+        val gasPaint = android.graphics.Paint().apply {
+            color = android.graphics.Color.WHITE
+            textSize = 10f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            textAlign = android.graphics.Paint.Align.CENTER
         }
-    }
-}
-
-private fun DrawScope.drawObstacles(
-    obstacles: List<ObstacleItem>,
-    camX: Float,
-    camY: Float
-) {
-    for (obs in obstacles) {
-        val sx = obs.x + camX
-        val sy = obs.y + camY
-
-        rotate(degrees = obs.angle * 180f / PI.toFloat(), pivot = Offset(sx, sy)) {
-            val halfW = obs.width / 2f
-            val halfH = obs.height / 2f
-
-            if (obs.type == ObstacleType.WOOD_CRATE) {
-                // Wooden Crate
-                drawRoundRect(
-                    color = Color(0xFF8D6E63),
-                    topLeft = Offset(sx - halfW, sy - halfH),
-                    size = Size(obs.width, obs.height),
-                    cornerRadius = CornerRadius(3f, 3f)
-                )
-                // Border frame
-                drawRoundRect(
-                    color = Color(0xFF5D4037),
-                    topLeft = Offset(sx - halfW, sy - halfH),
-                    size = Size(obs.width, obs.height),
-                    cornerRadius = CornerRadius(3f, 3f),
-                    style = Stroke(width = 2.5f)
-                )
-                // Diagonal wooden brace
-                drawLine(
-                    color = Color(0xFF5D4037),
-                    start = Offset(sx - halfW, sy - halfH),
-                    end = Offset(sx + halfW, sy + halfH),
-                    strokeWidth = 2.5f
-                )
-            } else {
-                // Steel Oil Barrel
-                drawRoundRect(
-                    color = Color(0xFF37474F),
-                    topLeft = Offset(sx - halfW, sy - halfH),
-                    size = Size(obs.width, obs.height),
-                    cornerRadius = CornerRadius(4f, 4f)
-                )
-                // Barrel ribs
-                drawLine(
-                    color = Color(0xFF78909C),
-                    start = Offset(sx - halfW, sy - halfH * 0.3f),
-                    end = Offset(sx + halfW, sy - halfH * 0.3f),
-                    strokeWidth = 2f
-                )
-                drawLine(
-                    color = Color(0xFF78909C),
-                    start = Offset(sx - halfW, sy + halfH * 0.3f),
-                    end = Offset(sx + halfW, sy + halfH * 0.3f),
-                    strokeWidth = 2f
-                )
-                // Hazard symbol
-                drawCircle(
-                    color = Color(0xFFFFD600),
-                    radius = 3.5f,
-                    center = Offset(sx, sy)
-                )
-            }
-        }
+        drawContext.canvas.nativeCanvas.drawText("GAS", sx, sy + 3f, gasPaint)
     }
 }
 
@@ -547,39 +796,33 @@ private fun DrawScope.drawVehicle(
 
     val cosA = cos(engine.chassisAngle)
     val sinA = sin(engine.chassisAngle)
-    val halfBase = engine.vehicleType.wheelBase * 0.5f
+    val halfBase = if (engine.isOneWheeler) 0f else engine.vehicleType.wheelBase * 0.5f
     val suspLen = engine.vehicleType.suspensionLength
 
-    val rearAnchorSX = chassisSX - cosA * halfBase - sinA * suspLen * 0.4f
-    val rearAnchorSY = chassisSY - sinA * halfBase + cosA * suspLen * 0.4f
-    val frontAnchorSX = chassisSX + cosA * halfBase - sinA * suspLen * 0.4f
-    val frontAnchorSY = chassisSY + sinA * halfBase + cosA * suspLen * 0.4f
+    val rearAnchorSX = chassisSX - cosA * halfBase - sinA * suspLen * 0.35f
+    val rearAnchorSY = chassisSY - sinA * halfBase + cosA * suspLen * 0.35f
+    val frontAnchorSX = chassisSX + cosA * halfBase - sinA * suspLen * 0.35f
+    val frontAnchorSY = chassisSY + sinA * halfBase + cosA * suspLen * 0.35f
 
-    // 1. Suspension Springs (zigzag coils between anchors and wheel centers)
+    // 1. Suspension Springs
     drawSuspensionCoil(rearAnchorSX, rearAnchorSY, rearSX, rearSY)
-    drawSuspensionCoil(frontAnchorSX, frontAnchorSY, frontSX, frontSY)
+    if (!engine.isOneWheeler) {
+        drawSuspensionCoil(frontAnchorSX, frontAnchorSY, frontSX, frontSY)
+    }
 
     // 2. Wheels
-    drawWheel(rearSX, rearSY, engine.vehicleType.wheelRadius, engine.rearWheelSpin)
-    drawWheel(frontSX, frontSY, engine.vehicleType.wheelRadius, engine.frontWheelSpin)
+    drawWheel(rearSX, rearSY, engine.rearWheelRadius, engine.rearWheelSpin)
+    if (!engine.isOneWheeler) {
+        drawWheel(frontSX, frontSY, engine.frontWheelRadius, engine.frontWheelSpin)
+    }
 
     // 3. Vehicle Body / Chassis & Driver
     rotate(degrees = chassisDeg, pivot = Offset(chassisSX, chassisSY)) {
-        when (engine.vehicleType) {
-            VehicleType.JEEP -> drawJeepChassis(chassisSX, chassisSY, engine.boostValue > 20f)
-            VehicleType.BIKE -> drawBikeChassis(chassisSX, chassisSY)
-            VehicleType.MONSTER_TRUCK -> drawMonsterChassis(chassisSX, chassisSY)
-            VehicleType.TANK -> drawTankChassis(chassisSX, chassisSY)
-        }
+        drawVehicleChassisByType(engine.vehicleType, chassisSX, chassisSY, engine.boostValue > 20f)
     }
 }
 
-private fun DrawScope.drawSuspensionCoil(
-    x1: Float,
-    y1: Float,
-    x2: Float,
-    y2: Float
-) {
+private fun DrawScope.drawSuspensionCoil(x1: Float, y1: Float, x2: Float, y2: Float) {
     val coilPath = Path()
     coilPath.moveTo(x1, y1)
     val coils = 4
@@ -588,310 +831,535 @@ private fun DrawScope.drawSuspensionCoil(
         val t2 = i.toFloat() / coils
         val px = x1 + (x2 - x1) * t1
         val py = y1 + (y2 - y1) * t1
-        val perpX = -(y2 - y1) * 0.14f
-        val perpY = (x2 - x1) * 0.14f
-        val sign = if (i % 2 == 0) 1f else -1f
-
-        coilPath.lineTo(px + perpX * sign, py + perpY * sign)
+        val dx = -(y2 - y1) * 0.12f
+        val dy = (x2 - x1) * 0.12f
+        val side = if (i % 2 == 0) 1f else -1f
+        coilPath.lineTo(px + dx * side, py + dy * side)
         coilPath.lineTo(x1 + (x2 - x1) * t2, y1 + (y2 - y1) * t2)
     }
-
-    drawPath(
-        path = coilPath,
-        color = Color(0xFF78909C),
-        style = Stroke(width = 3.2f, cap = StrokeCap.Round)
-    )
+    drawPath(coilPath, color = Color(0xFF94A3B8), style = Stroke(width = 3.5f, cap = StrokeCap.Round))
 }
 
-private fun DrawScope.drawWheel(x: Float, y: Float, radius: Float, spinAngle: Float) {
-    // Tire Rubber
+private fun DrawScope.drawWheel(cx: Float, cy: Float, radius: Float, spinAngle: Float) {
+    // 1. Deep Tread Outer Rubber Tire
     drawCircle(
         color = Color(0xFF1E293B),
         radius = radius,
-        center = Offset(x, y)
+        center = Offset(cx, cy)
+    )
+    // Tire tread teeth
+    val teeth = 10
+    for (i in 0 until teeth) {
+        val ang = spinAngle + i * (2f * PI.toFloat() / teeth)
+        val tx = cx + cos(ang) * (radius - 2f)
+        val ty = cy + sin(ang) * (radius - 2f)
+        drawCircle(
+            color = Color(0xFF0F172A),
+            radius = 3.2f,
+            center = Offset(tx, ty)
+        )
+    }
+
+    // 2. Shiny Metallic Rim
+    val rimRadius = radius * 0.58f
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(Color(0xFFF1F5F9), Color(0xFF94A3B8), Color(0xFF475569)),
+            center = Offset(cx - 2f, cy - 2f),
+            radius = rimRadius
+        ),
+        radius = rimRadius,
+        center = Offset(cx, cy)
     )
 
-    // Tire Tread Studs
-    val treadCount = 8
-    val treadAngleDeg = spinAngle * 180f / PI.toFloat()
-    rotate(degrees = treadAngleDeg, pivot = Offset(x, y)) {
-        for (i in 0 until treadCount) {
-            val ang = i * (2f * PI.toFloat() / treadCount)
-            val tx = x + cos(ang) * (radius - 2f)
-            val ty = y + sin(ang) * (radius - 2f)
-            drawCircle(color = Color(0xFF334155), radius = 2.5f, center = Offset(tx, ty))
-        }
-
-        // Alloy Rim
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(Color(0xFFECEFF1), Color(0xFF78909C)),
-                center = Offset(x, y),
-                radius = radius * 0.62f
-            ),
-            radius = radius * 0.62f,
-            center = Offset(x, y)
-        )
-
-        // Rim Spokes
+    // 3. Central Hub & Spokes
+    drawCircle(
+        color = Color(0xFFD32F2F),
+        radius = rimRadius * 0.32f,
+        center = Offset(cx, cy)
+    )
+    val spokes = 5
+    for (i in 0 until spokes) {
+        val ang = spinAngle + i * (2f * PI.toFloat() / spokes)
         drawLine(
-            color = Color(0xFF37474F),
-            start = Offset(x - radius * 0.55f, y),
-            end = Offset(x + radius * 0.55f, y),
+            color = Color(0xFF334155),
+            start = Offset(cx, cy),
+            end = Offset(cx + cos(ang) * (rimRadius - 2f), cy + sin(ang) * (rimRadius - 2f)),
             strokeWidth = 2.5f
         )
-        drawLine(
-            color = Color(0xFF37474F),
-            start = Offset(x, y - radius * 0.55f),
-            end = Offset(x, y + radius * 0.55f),
-            strokeWidth = 2.5f
-        )
-
-        // Center Lug Nut Hub
-        drawCircle(color = Color(0xFFD32F2F), radius = 3.5f, center = Offset(x, y))
     }
 }
 
-private fun DrawScope.drawJeepChassis(cx: Float, cy: Float, isBoosting: Boolean) {
-    // 1. Red Main Tub/Body
-    val bodyPath = Path().apply {
-        moveTo(cx - 38f, cy + 12f)
-        lineTo(cx + 42f, cy + 12f)
-        lineTo(cx + 42f, cy - 2f)
-        lineTo(cx + 22f, cy - 8f) // Hood
-        lineTo(cx + 2f, cy - 8f)
-        lineTo(cx - 6f, cy - 2f)  // Cab cutout
-        lineTo(cx - 38f, cy - 2f) // Rear cargo bed
-        close()
+private fun DrawScope.drawVehicleChassisByType(
+    type: VehicleType,
+    sx: Float,
+    sy: Float,
+    isBoostActive: Boolean
+) {
+    when (type) {
+        VehicleType.JEEP -> drawJeepChassis(sx, sy, isBoostActive)
+        VehicleType.BIKE -> drawBikeChassis(sx, sy)
+        VehicleType.MONSTER_TRUCK -> drawMonsterChassis(sx, sy)
+        VehicleType.TRACTOR -> drawTractorChassis(sx, sy)
+        VehicleType.TRUCK -> drawTruckChassis(sx, sy)
+        VehicleType.QUAD_BIKE -> drawQuadChassis(sx, sy)
+        VehicleType.RALLY_CAR -> drawRallyCarChassis(sx, sy)
+        VehicleType.HIPPIE_VAN -> drawHippieVanChassis(sx, sy)
+        VehicleType.TANK -> drawTankChassis(sx, sy)
+        VehicleType.SUPERCAR -> drawSupercarChassis(sx, sy)
+        VehicleType.ONE_WHEELER -> drawOneWheelerChassis(sx, sy)
     }
-    drawPath(bodyPath, color = Color(0xFFD32F2F))
+}
 
-    // Body trim highlights
+// 1. Classic Red Jeep
+private fun DrawScope.drawJeepChassis(sx: Float, sy: Float, isBoostActive: Boolean) {
+    // Red Jeep Main Tub
     drawRoundRect(
-        color = Color(0xFFB71C1C),
-        topLeft = Offset(cx - 38f, cy + 8f),
-        size = Size(80f, 4f),
+        color = Color(0xFFD32F2F),
+        topLeft = Offset(sx - 38f, sy - 14f),
+        size = Size(76f, 22f),
+        cornerRadius = CornerRadius(4f, 4f)
+    )
+    // Black Roll Bar Cage
+    val cagePath = Path().apply {
+        moveTo(sx - 26f, sy - 14f)
+        lineTo(sx - 18f, sy - 36f)
+        lineTo(sx + 10f, sy - 36f)
+        lineTo(sx + 16f, sy - 14f)
+    }
+    drawPath(cagePath, color = Color(0xFF1E293B), style = Stroke(width = 4f, cap = StrokeCap.Round))
+
+    // Windshield frame
+    drawLine(
+        color = Color(0xFF81D4FA),
+        start = Offset(sx + 16f, sy - 14f),
+        end = Offset(sx + 10f, sy - 36f),
+        strokeWidth = 3f
+    )
+
+    // Driver Bill with Cap
+    drawDriverWithHelmet(sx - 4f, sy - 28f, Color(0xFFD32F2F))
+
+    // Headlight
+    drawCircle(
+        color = Color(0xFFFFF59D),
+        radius = 5f,
+        center = Offset(sx + 36f, sy - 4f)
+    )
+}
+
+// 2. Motocross Dirt Bike
+private fun DrawScope.drawBikeChassis(sx: Float, sy: Float) {
+    // Orange Motocross Frame
+    val framePath = Path().apply {
+        moveTo(sx - 24f, sy)
+        lineTo(sx, sy - 12f)
+        lineTo(sx + 22f, sy - 4f)
+        lineTo(sx + 16f, sy - 28f) // Handlebars
+    }
+    drawPath(framePath, color = Color(0xFFF57C00), style = Stroke(width = 5f, cap = StrokeCap.Round))
+
+    // Seat
+    drawRoundRect(
+        color = Color(0xFF212121),
+        topLeft = Offset(sx - 16f, sy - 18f),
+        size = Size(20f, 6f),
         cornerRadius = CornerRadius(2f, 2f)
     )
 
-    // Number '7' decal (from original Hill Climb Racer jeep!)
-    val paint = android.graphics.Paint().apply {
-        color = android.graphics.Color.WHITE
-        textSize = 15f
-        textAlign = android.graphics.Paint.Align.CENTER
-        isFakeBoldText = true
-    }
-    drawContext.canvas.nativeCanvas.drawText("7", cx + 8f, cy + 8f, paint)
-
-    // 2. Roll Cage Bars
-    drawLine(
-        color = Color(0xFF263238),
-        start = Offset(cx - 30f, cy - 2f),
-        end = Offset(cx - 18f, cy - 26f),
-        strokeWidth = 3.5f,
-        cap = StrokeCap.Round
-    )
-    drawLine(
-        color = Color(0xFF263238),
-        start = Offset(cx - 18f, cy - 26f),
-        end = Offset(cx + 8f, cy - 26f),
-        strokeWidth = 3.5f,
-        cap = StrokeCap.Round
-    )
-    drawLine(
-        color = Color(0xFF263238),
-        start = Offset(cx + 8f, cy - 26f),
-        end = Offset(cx + 14f, cy - 8f), // Windshield strut
-        strokeWidth = 3.5f,
-        cap = StrokeCap.Round
-    )
-
-    // 3. Driver (Bill!)
-    // Torso / Red shirt
-    drawRoundRect(
-        color = Color(0xFFC62828),
-        topLeft = Offset(cx - 14f, cy - 14f),
-        size = Size(14f, 14f),
-        cornerRadius = CornerRadius(3f, 3f)
-    )
-    // Driver Head / Face
-    drawCircle(
-        color = Color(0xFFFFCC80),
-        radius = 7.5f,
-        center = Offset(cx - 7f, cy - 20f)
-    )
-    // Driver Red Cap
-    drawArc(
-        color = Color(0xFFD32F2F),
-        startAngle = 180f,
-        sweepAngle = 180f,
-        useCenter = true,
-        topLeft = Offset(cx - 15f, cy - 28f),
-        size = Size(16f, 16f)
-    )
-    // Cap bill
-    drawLine(
-        color = Color(0xFFD32F2F),
-        start = Offset(cx - 1f, cy - 20f),
-        end = Offset(cx + 6f, cy - 20f),
-        strokeWidth = 2.5f,
-        cap = StrokeCap.Round
-    )
-
-    // 4. Spare Tire Mounted on Back
-    drawCircle(
-        color = Color(0xFF263238),
-        radius = 11f,
-        center = Offset(cx - 42f, cy + 2f)
-    )
-    drawCircle(
-        color = Color(0xFF78909C),
-        radius = 5.5f,
-        center = Offset(cx - 42f, cy + 2f)
-    )
-
-    // 5. Headlight Glow
-    drawCircle(
-        color = Color(0xFFFFF59D).copy(alpha = 0.9f),
-        radius = 4f,
-        center = Offset(cx + 42f, cy + 3f)
-    )
-
-    // 6. Exhaust Pipe & Turbo Fire
-    drawRoundRect(
-        color = Color(0xFF455A64),
-        topLeft = Offset(cx - 42f, cy + 10f),
-        size = Size(8f, 4f),
-        cornerRadius = CornerRadius(1f, 1f)
-    )
-    if (isBoosting) {
-        // Boost Flame
-        val flamePath = Path().apply {
-            moveTo(cx - 42f, cy + 10f)
-            lineTo(cx - 62f, cy + 12f)
-            lineTo(cx - 42f, cy + 14f)
-            close()
-        }
-        drawPath(flamePath, color = Color(0xFFFF9100))
-        val innerFlame = Path().apply {
-            moveTo(cx - 42f, cy + 11f)
-            lineTo(cx - 52f, cy + 12f)
-            lineTo(cx - 42f, cy + 13f)
-            close()
-        }
-        drawPath(innerFlame, color = Color(0xFFFFEA00))
-    }
-}
-
-private fun DrawScope.drawBikeChassis(cx: Float, cy: Float) {
-    // Dirt Bike Frame (tubular orange bars)
-    val frameColor = Color(0xFFF57C00)
-    // Main frame backbone
-    drawLine(
-        color = frameColor,
-        start = Offset(cx - 26f, cy + 8f),
-        end = Offset(cx + 4f, cy - 14f),
-        strokeWidth = 4f,
-        cap = StrokeCap.Round
-    )
-    drawLine(
-        color = frameColor,
-        start = Offset(cx + 4f, cy - 14f),
-        end = Offset(cx + 28f, cy + 8f),
-        strokeWidth = 4f,
-        cap = StrokeCap.Round
-    )
     // Handlebars
     drawLine(
-        color = Color(0xFF263238),
-        start = Offset(cx + 2f, cy - 14f),
-        end = Offset(cx + 12f, cy - 24f),
-        strokeWidth = 3.5f,
-        cap = StrokeCap.Round
+        color = Color(0xFF90A4AE),
+        start = Offset(sx + 12f, sy - 28f),
+        end = Offset(sx + 20f, sy - 28f),
+        strokeWidth = 3.5f
     )
-    // Orange gas tank & plastics
-    drawRoundRect(
-        color = frameColor,
-        topLeft = Offset(cx - 6f, cy - 16f),
-        size = Size(18f, 7f),
-        cornerRadius = CornerRadius(3f, 3f)
-    )
-    // Biker Driver (leaning forward)
-    drawRoundRect(
-        color = Color(0xFFE65100),
-        topLeft = Offset(cx - 16f, cy - 20f),
-        size = Size(15f, 16f),
-        cornerRadius = CornerRadius(3f, 3f)
-    )
-    drawCircle(
-        color = Color(0xFFFFD54F),
-        radius = 8f,
-        center = Offset(cx - 4f, cy - 26f)
-    )
-    // Full face helmet visor
-    drawArc(
-        color = Color(0xFF212121),
-        startAngle = 270f,
-        sweepAngle = 90f,
-        useCenter = true,
-        topLeft = Offset(cx - 4f, cy - 30f),
-        size = Size(8f, 8f)
-    )
+
+    // Biker Driver leaning forward
+    drawDriverWithHelmet(sx - 2f, sy - 32f, Color(0xFFF57C00))
 }
 
-private fun DrawScope.drawMonsterChassis(cx: Float, cy: Float) {
-    // Heavy blue pickup truck cab
+// 3. Monster Truck
+private fun DrawScope.drawMonsterChassis(sx: Float, sy: Float) {
+    // High Blue Pickup Body
     drawRoundRect(
         color = Color(0xFF1976D2),
-        topLeft = Offset(cx - 36f, cy - 18f),
-        size = Size(74f, 24f),
-        cornerRadius = CornerRadius(4f, 4f)
+        topLeft = Offset(sx - 44f, sy - 22f),
+        size = Size(88f, 26f),
+        cornerRadius = CornerRadius(6f, 6f)
     )
-    // Cab roof
+    // Cab Roof
     drawRoundRect(
         color = Color(0xFF0D47A1),
-        topLeft = Offset(cx - 16f, cy - 30f),
-        size = Size(36f, 14f),
+        topLeft = Offset(sx - 22f, sy - 42f),
+        size = Size(42f, 22f),
         cornerRadius = CornerRadius(4f, 4f)
     )
-    // Windows
-    drawRoundRect(
-        color = Color(0xFFB3E5FC),
-        topLeft = Offset(cx - 12f, cy - 27f),
-        size = Size(30f, 9f),
-        cornerRadius = CornerRadius(2f, 2f)
-    )
-    // High-rise monster suspension subframe
+    // Chrome Heavy Rollbar with Offroad Spotlights
     drawLine(
-        color = Color(0xFF455A64),
-        start = Offset(cx - 30f, cy + 6f),
-        end = Offset(cx + 30f, cy + 6f),
-        strokeWidth = 6f
+        color = Color(0xFFCFD8DC),
+        start = Offset(sx - 18f, sy - 22f),
+        end = Offset(sx - 18f, sy - 48f),
+        strokeWidth = 4f
     )
+    for (i in 0..2) {
+        drawCircle(
+            color = Color(0xFFFFEB3B),
+            radius = 4f,
+            center = Offset(sx - 18f + i * 16f, sy - 48f)
+        )
+    }
+
+    drawDriverWithHelmet(sx - 4f, sy - 32f, Color(0xFF1976D2))
 }
 
-private fun DrawScope.drawTankChassis(cx: Float, cy: Float) {
-    // Heavy olive green armor body
-    drawRoundRect(
-        color = Color(0xFF388E3C),
-        topLeft = Offset(cx - 42f, cy - 8f),
-        size = Size(86f, 20f),
-        cornerRadius = CornerRadius(4f, 4f)
-    )
-    // Turret
+// 4. Farm Tractor ("Tractor")
+private fun DrawScope.drawTractorChassis(sx: Float, sy: Float) {
+    // Green Farm Tractor Engine Bonnet (John Deere Green)
     drawRoundRect(
         color = Color(0xFF2E7D32),
-        topLeft = Offset(cx - 16f, cy - 22f),
-        size = Size(36f, 15f),
+        topLeft = Offset(sx - 6f, sy - 18f),
+        size = Size(46f, 24f),
+        cornerRadius = CornerRadius(4f, 4f)
+    )
+    // Yellow Stripe
+    drawRect(
+        color = Color(0xFFFBC02D),
+        topLeft = Offset(sx - 6f, sy - 8f),
+        size = Size(46f, 4f)
+    )
+
+    // Rear High Mudguard over big rear wheel
+    val mudguardPath = Path().apply {
+        moveTo(sx - 42f, sy + 6f)
+        quadraticBezierTo(sx - 28f, sy - 28f, sx - 10f, sy - 14f)
+    }
+    drawPath(mudguardPath, color = Color(0xFF1B5E20), style = Stroke(width = 8f, cap = StrokeCap.Round))
+
+    // Vertical Exhaust Chimney Smokestack
+    drawLine(
+        color = Color(0xFF212121),
+        start = Offset(sx + 24f, sy - 18f),
+        end = Offset(sx + 24f, sy - 44f),
+        strokeWidth = 4.5f
+    )
+    // Rain cap flap on chimney
+    drawLine(
+        color = Color(0xFF424242),
+        start = Offset(sx + 21f, sy - 44f),
+        end = Offset(sx + 28f, sy - 47f),
+        strokeWidth = 2.5f
+    )
+
+    // Tractor Steering Column & Wheel
+    drawLine(
+        color = Color(0xFF424242),
+        start = Offset(sx + 8f, sy - 18f),
+        end = Offset(sx + 2f, sy - 30f),
+        strokeWidth = 3f
+    )
+    drawCircle(
+        color = Color(0xFF212121),
+        radius = 5f,
+        center = Offset(sx + 2f, sy - 30f)
+    )
+
+    // Driver in Farmer Straw Hat
+    drawDriverWithHelmet(sx - 14f, sy - 32f, Color(0xFFFBC02D))
+}
+
+// 5. Heavy Mining Semi Truck ("Track" / "Truck")
+private fun DrawScope.drawTruckChassis(sx: Float, sy: Float) {
+    // Big Square Orange/Red Cab
+    drawRoundRect(
+        color = Color(0xFFE65100),
+        topLeft = Offset(sx + 6f, sy - 44f),
+        size = Size(38f, 46f),
         cornerRadius = CornerRadius(5f, 5f)
     )
-    // Tank cannon barrel
+
+    // Front Chrome Grille
+    drawRoundRect(
+        brush = Brush.verticalGradient(listOf(Color(0xFFECEFF1), Color(0xFF78909C))),
+        topLeft = Offset(sx + 36f, sy - 30f),
+        size = Size(10f, 30f),
+        cornerRadius = CornerRadius(3f, 3f)
+    )
+
+    // Windshield & Sun Visor
+    drawRect(
+        color = Color(0xFF81D4FA),
+        topLeft = Offset(sx + 16f, sy - 40f),
+        size = Size(20f, 16f)
+    )
+    drawRect(
+        color = Color(0xFFBF360C),
+        topLeft = Offset(sx + 14f, sy - 44f),
+        size = Size(26f, 4f)
+    )
+
+    // Rear Heavy Cargo Flatbed Frame
+    drawRoundRect(
+        color = Color(0xFF37474F),
+        topLeft = Offset(sx - 46f, sy - 14f),
+        size = Size(54f, 16f),
+        cornerRadius = CornerRadius(2f, 2f)
+    )
+
+    // Dual Tall Chrome Exhaust Stacks
     drawLine(
+        color = Color(0xFFECEFF1),
+        start = Offset(sx + 4f, sy - 20f),
+        end = Offset(sx + 4f, sy - 54f),
+        strokeWidth = 4f
+    )
+
+    drawDriverWithHelmet(sx + 22f, sy - 32f, Color(0xFFE65100))
+}
+
+// 6. 4x4 Desert Quad ATV
+private fun DrawScope.drawQuadChassis(sx: Float, sy: Float) {
+    // Teal/Black ATV Offroad body
+    drawRoundRect(
+        color = Color(0xFF00897B),
+        topLeft = Offset(sx - 32f, sy - 14f),
+        size = Size(64f, 18f),
+        cornerRadius = CornerRadius(4f, 4f)
+    )
+
+    // Mudguards over front & rear wheels
+    drawArc(
+        color = Color(0xFF004D40),
+        startAngle = 180f,
+        sweepAngle = 180f,
+        useCenter = false,
+        topLeft = Offset(sx - 36f, sy - 20f),
+        size = Size(26f, 20f),
+        style = Stroke(width = 4f)
+    )
+    drawArc(
+        color = Color(0xFF004D40),
+        startAngle = 180f,
+        sweepAngle = 180f,
+        useCenter = false,
+        topLeft = Offset(sx + 10f, sy - 20f),
+        size = Size(26f, 20f),
+        style = Stroke(width = 4f)
+    )
+
+    // Handlebars
+    drawLine(
+        color = Color(0xFF37474F),
+        start = Offset(sx + 8f, sy - 14f),
+        end = Offset(sx + 12f, sy - 26f),
+        strokeWidth = 3.5f
+    )
+
+    drawDriverWithHelmet(sx - 6f, sy - 30f, Color(0xFF00897B))
+}
+
+// 7. Turbo Rally Car
+private fun DrawScope.drawRallyCarChassis(sx: Float, sy: Float) {
+    // Cyan Aerodynamic Body
+    val bodyPath = Path().apply {
+        moveTo(sx - 38f, sy - 2f)
+        lineTo(sx - 34f, sy - 16f)
+        lineTo(sx - 12f, sy - 28f)
+        lineTo(sx + 18f, sy - 28f)
+        lineTo(sx + 36f, sy - 10f)
+        lineTo(sx + 38f, sy - 2f)
+        close()
+    }
+    drawPath(bodyPath, color = Color(0xFF00ACC1))
+
+    // Windshield & windows
+    val winPath = Path().apply {
+        moveTo(sx - 10f, sy - 26f)
+        lineTo(sx + 15f, sy - 26f)
+        lineTo(sx + 28f, sy - 14f)
+        lineTo(sx - 10f, sy - 14f)
+        close()
+    }
+    drawPath(winPath, color = Color(0xFF80DEEA))
+
+    // Rear Aero Wing
+    drawLine(
+        color = Color(0xFF006064),
+        start = Offset(sx - 36f, sy - 16f),
+        end = Offset(sx - 38f, sy - 30f),
+        strokeWidth = 3f
+    )
+    drawRect(
+        color = Color(0xFF006064),
+        topLeft = Offset(sx - 44f, sy - 32f),
+        size = Size(16f, 4f)
+    )
+
+    drawDriverWithHelmet(sx + 2f, sy - 24f, Color(0xFF00ACC1))
+}
+
+// 8. Classic Hippie Van
+private fun DrawScope.drawHippieVanChassis(sx: Float, sy: Float) {
+    // Retro Boxy Bus Body
+    drawRoundRect(
+        color = Color(0xFF8E24AA),
+        topLeft = Offset(sx - 42f, sy - 36f),
+        size = Size(84f, 40f),
+        cornerRadius = CornerRadius(6f, 6f)
+    )
+    // Lower White Section
+    drawRect(
+        color = Color(0xFFF5F5F5),
+        topLeft = Offset(sx - 42f, sy - 16f),
+        size = Size(84f, 20f)
+    )
+    // Windows
+    drawRect(
+        color = Color(0xFF81D4FA),
+        topLeft = Offset(sx - 34f, sy - 32f),
+        size = Size(18f, 14f)
+    )
+    drawRect(
+        color = Color(0xFF81D4FA),
+        topLeft = Offset(sx - 10f, sy - 32f),
+        size = Size(20f, 14f)
+    )
+    drawRect(
+        color = Color(0xFF81D4FA),
+        topLeft = Offset(sx + 16f, sy - 32f),
+        size = Size(20f, 14f)
+    )
+
+    // Roof Rack with Surfboard
+    drawLine(
+        color = Color(0xFF757575),
+        start = Offset(sx - 36f, sy - 38f),
+        end = Offset(sx + 36f, sy - 38f),
+        strokeWidth = 3f
+    )
+    drawRoundRect(
+        color = Color(0xFFFFB300),
+        topLeft = Offset(sx - 30f, sy - 44f),
+        size = Size(60f, 6f),
+        cornerRadius = CornerRadius(3f, 3f)
+    )
+
+    drawDriverWithHelmet(sx + 22f, sy - 26f, Color(0xFFFFB300))
+}
+
+// 9. Armored Military Tank
+private fun DrawScope.drawTankChassis(sx: Float, sy: Float) {
+    // Olive Green Armored Tank Hull
+    drawRoundRect(
+        color = Color(0xFF33691E),
+        topLeft = Offset(sx - 48f, sy - 16f),
+        size = Size(96f, 22f),
+        cornerRadius = CornerRadius(5f, 5f)
+    )
+    // Armored Rotating Turret
+    drawRoundRect(
         color = Color(0xFF1B5E20),
-        start = Offset(cx + 18f, cy - 16f),
-        end = Offset(cx + 52f, cy - 16f),
-        strokeWidth = 5f,
-        cap = StrokeCap.Round
+        topLeft = Offset(sx - 24f, sy - 34f),
+        size = Size(48f, 18f),
+        cornerRadius = CornerRadius(6f, 6f)
+    )
+    // Long Cannon Barrel
+    drawLine(
+        color = Color(0xFF2E7D32),
+        start = Offset(sx + 18f, sy - 26f),
+        end = Offset(sx + 62f, sy - 26f),
+        strokeWidth = 6f
+    )
+    // Muzzle Brake
+    drawRect(
+        color = Color(0xFF1B5E20),
+        topLeft = Offset(sx + 58f, sy - 30f),
+        size = Size(6f, 8f)
+    )
+
+    // Caterpillar Track loop around wheels
+    drawRoundRect(
+        color = Color(0xFF212121),
+        topLeft = Offset(sx - 52f, sy - 4f),
+        size = Size(104f, 12f),
+        cornerRadius = CornerRadius(6f, 6f),
+        style = Stroke(width = 3.5f)
+    )
+
+    drawDriverWithHelmet(sx - 6f, sy - 38f, Color(0xFF33691E))
+}
+
+// 10. Formula F1 Hypercar
+private fun DrawScope.drawSupercarChassis(sx: Float, sy: Float) {
+    // Sleek Yellow/Carbon Formula 1 Body
+    val f1Path = Path().apply {
+        moveTo(sx - 42f, sy - 4f)
+        lineTo(sx - 36f, sy - 16f)
+        lineTo(sx - 6f, sy - 22f)
+        lineTo(sx + 26f, sy - 14f)
+        lineTo(sx + 48f, sy - 4f)
+        close()
+    }
+    drawPath(f1Path, color = Color(0xFFFFD600))
+
+    // Front Wing
+    drawRoundRect(
+        color = Color(0xFF212121),
+        topLeft = Offset(sx + 40f, sy - 6f),
+        size = Size(14f, 6f),
+        cornerRadius = CornerRadius(2f, 2f)
+    )
+
+    // High Downforce Rear Spoiler
+    drawLine(
+        color = Color(0xFF212121),
+        start = Offset(sx - 38f, sy - 14f),
+        end = Offset(sx - 42f, sy - 32f),
+        strokeWidth = 3f
+    )
+    drawRoundRect(
+        color = Color(0xFF212121),
+        topLeft = Offset(sx - 48f, sy - 34f),
+        size = Size(18f, 5f),
+        cornerRadius = CornerRadius(2f, 2f)
+    )
+
+    // Cockpit Halo & Racer Helmet
+    drawDriverWithHelmet(sx + 4f, sy - 24f, Color(0xFFFFD600))
+}
+
+// 11. Stunt Unicycle
+private fun DrawScope.drawOneWheelerChassis(sx: Float, sy: Float) {
+    // Chrome Unicycle Fork
+    drawLine(
+        color = Color(0xFFECEFF1),
+        start = Offset(sx, sy),
+        end = Offset(sx, sy - 34f),
+        strokeWidth = 4f
+    )
+    // Saddle Seat
+    drawRoundRect(
+        color = Color(0xFFE91E63),
+        topLeft = Offset(sx - 12f, sy - 38f),
+        size = Size(24f, 7f),
+        cornerRadius = CornerRadius(3f, 3f)
+    )
+    drawDriverWithHelmet(sx, sy - 48f, Color(0xFFE91E63))
+}
+
+private fun DrawScope.drawDriverWithHelmet(hx: Float, hy: Float, helmetColor: Color) {
+    // Driver Head / Helmet
+    drawCircle(
+        color = helmetColor,
+        radius = 9f,
+        center = Offset(hx, hy)
+    )
+    // Black Visor
+    drawRoundRect(
+        color = Color(0xFF0F172A),
+        topLeft = Offset(hx + 1f, hy - 4f),
+        size = Size(9f, 6f),
+        cornerRadius = CornerRadius(2f, 2f)
     )
 }
 
@@ -903,12 +1371,13 @@ private fun DrawScope.drawParticles(
     for (p in particles) {
         val sx = p.x + camX
         val sy = p.y + camY
-        val alpha = (p.life / p.maxLife).coerceIn(0f, 1f)
-        drawCircle(
-            color = p.color.copy(alpha = alpha),
-            radius = p.currentRadius,
-            center = Offset(sx, sy)
-        )
+        if (sx in -20f..size.width + 20f && sy in -20f..size.height + 20f && p.currentRadius > 0.5f) {
+            drawCircle(
+                color = p.color.copy(alpha = (p.life / p.maxLife).coerceIn(0f, 1f)),
+                radius = p.currentRadius,
+                center = Offset(sx, sy)
+            )
+        }
     }
 }
 
@@ -917,19 +1386,23 @@ private fun DrawScope.drawFloatingNotifications(
     camX: Float,
     camY: Float
 ) {
-    for (fn in notifications) {
-        val sx = fn.x + camX
-        val sy = fn.y + camY
-        val alpha = (fn.life / fn.maxLife).coerceIn(0f, 1f)
-
-        val paint = android.graphics.Paint().apply {
-            color = android.graphics.Color.WHITE
-            textSize = 22f
-            textAlign = android.graphics.Paint.Align.CENTER
-            isFakeBoldText = true
-            setShadowLayer(4f, 0f, 2f, android.graphics.Color.BLACK)
-            this.alpha = (alpha * 255).toInt()
+    for (n in notifications) {
+        val sx = n.x + camX
+        val sy = n.y + camY
+        if (sx in -100f..size.width + 100f) {
+            val textPaint = android.graphics.Paint().apply {
+                color = android.graphics.Color.argb(
+                    ((n.life / n.maxLife).coerceIn(0f, 1f) * 255).toInt(),
+                    (n.color.red * 255).toInt(),
+                    (n.color.green * 255).toInt(),
+                    (n.color.blue * 255).toInt()
+                )
+                textSize = 22f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                textAlign = android.graphics.Paint.Align.CENTER
+                setShadowLayer(6f, 0f, 2f, android.graphics.Color.BLACK)
+            }
+            drawContext.canvas.nativeCanvas.drawText(n.text, sx, sy, textPaint)
         }
-        drawContext.canvas.nativeCanvas.drawText(fn.text, sx, sy, paint)
     }
 }

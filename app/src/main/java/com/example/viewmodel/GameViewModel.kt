@@ -187,21 +187,20 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
         // Commit earned coins to bank
         var coinsEarned = engine.coinsCollectedScore
 
-        // Perfect run bonus: if completed level without flipping and collected all fuel cans
-        if (finalState == GameState.LEVEL_COMPLETED) {
-            repository.completeLevel(engine.levelInfo.levelNumber)
-            if (engine.perfectRunEligible && engine.totalFuelCollected >= engine.fuelCans.size) {
-                val perfectBonus = 500 + engine.levelInfo.levelNumber * 10
-                coinsEarned += perfectBonus
-                _perfectRunBonusAwarded.value = perfectBonus
-            }
+        // Perfect run / Level progress updates
+        repository.completeLevel(engine.currentLevelNumber)
+        if (engine.perfectRunEligible && engine.totalFuelCollected >= engine.fuelCans.size) {
+            val perfectBonus = 500 + engine.currentLevelNumber * 20
+            coinsEarned += perfectBonus
+            _perfectRunBonusAwarded.value = perfectBonus
         }
 
         repository.addCoins(coinsEarned)
 
-        // Record update
-        val isNew = repository.updateBestDistance(engine.levelInfo.levelNumber, engine.distanceMeters)
-        _isNewRecord.value = isNew
+        // Record update for both level and stage
+        val isNew1 = repository.updateBestDistance(engine.levelInfo.levelNumber, engine.distanceMeters)
+        val isNew2 = repository.updateBestDistance(engine.stage, engine.distanceMeters)
+        _isNewRecord.value = isNew1 || isNew2
     }
 
     private fun stopGameLoop() {
