@@ -1,0 +1,6 @@
+{
+  "name": "Hill Climb Racing",
+  "description": "2D physics-based hill climbing racing game with realistic suspension, collectible coins, fuel system, upgrades, and multiple vehicles across diverse environments.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
